@@ -183,7 +183,7 @@ func main() {
 
 	// Parse args
 	installFlag := flag.Bool("install", false, "Use to install program and needed dependencies in user home folder")
-	configFlag := flag.Bool("config", false, "Use to create or reset config file in app directory")
+	configFlag := flag.Bool("config", false, "Use to create or reset config file")
 	uninstallFlag := flag.Bool("uninstall", false, "Use to remove program files and its dependencies from user home folder")
 	ytdlpFlag := flag.Bool("ytdlp", false, "Download remote video using yt-dlp")
 	verboseFlag := flag.Bool("verbose", false, "Print commands output in stdout")
