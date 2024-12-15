@@ -188,6 +188,7 @@ func main() {
 	ytdlpFlag := flag.Bool("ytdlp", false, "Download remote video using yt-dlp")
 	verboseFlag := flag.Bool("verbose", false, "Print commands output in stdout")
 	debugFlag := flag.Bool("debug", false, "Print debug info in stdout")
+	geminiFlag := flag.Bool("gemini", false, "Translate using Google Gemini instead of Whisper")
 	flag.Parse()
 
 	if *debugFlag {
@@ -195,6 +196,10 @@ func main() {
 	}
 	if *verboseFlag {
 		verboseMode = true
+	}
+	action := "translate"
+	if *geminiFlag {
+		action = "transcribe"
 	}
 
 	// path variables
@@ -233,10 +238,10 @@ func main() {
 
 	// --install
 	if *installFlag {
-		if folderExists(appDir) {
-			fmt.Println("Program files already installed, to reinstall first uninstall using --uninstall.")
-			os.Exit(1)
-		}
+		// if folderExists(appDir) {
+		// 	fmt.Println("Program files already installed, to reinstall first uninstall using --uninstall.")
+		// 	os.Exit(1)
+		// }
 
 		fmt.Println("Starting instalation.")
 		// Create application directory
@@ -305,9 +310,10 @@ func main() {
 		os.Exit(0)
 	}
 
-	if config.Key == "insert-key-here" {
+	if (config.Key == "insert-key-here") && *geminiFlag {
 		fmt.Println("Missing Google Gemini API key in config file.")
 		fmt.Println("Config file location:", path.Join(appDir, "config.toml"))
+		os.Exit(1)
 	}
 
 	// Clear tmp dir
@@ -349,6 +355,7 @@ func main() {
 	if path.Ext(url) == ".srt" {
 		name = strings.TrimSuffix(name, " (transcription)")
 		isSrtInput = true
+		*geminiFlag = true
 	}
 	transcriptionFile := path.Join(appDir, "tmp", name+" (transcription).srt") // this file does not exists if provided argument is .srt file
 	translationFile := path.Join(appDir, "tmp", name+".srt")
@@ -357,7 +364,7 @@ func main() {
 	if path.Ext(url) != ".srt" {
 		runCommand("Extracting audio from video file.", "ffmpeg", "-y", "-i", path.Join(currentDir, url), "-q:a", "0", "-map", "a", "tmp/audio.mp3")
 
-		runCommand("Transcription using Whisper AI.", "whisper-env/bin/python", "transcribe.py", name, config.Model, config.Threads, path.Join(appDir, "models"))
+		runCommand("Transcription using Whisper AI.", "whisper-env/bin/python", "transcribe.py", name, config.Model, config.Threads, path.Join(appDir, "models"), action)
 		debugLog("Created file:", transcriptionFile)
 		url = transcriptionFile
 
@@ -374,127 +381,135 @@ func main() {
 	}
 	transcription := string(transcriptionBuff)
 
-	// Init Gemini model
-	myspinner := spinner.New()
-	if verboseMode {
-		fmt.Println("Translation using Google Gemini AI.")
-	} else {
-		myspinner.Start("Translation using Google Gemini AI.")
-	}
-
-	ctx := context.Background()
-	client, err := genai.NewClient(ctx, option.WithAPIKey(config.Key))
-	if err != nil {
-		fmt.Println("Gemini error:", err)
-		os.Exit(1)
-	}
-	defer client.Close()
-
-	model := client.GenerativeModel("gemini-1.5-pro")
-
-	model.SafetySettings = []*genai.SafetySetting{
-		{
-			Category:  genai.HarmCategoryHarassment,
-			Threshold: genai.HarmBlockNone,
-		},
-		{
-			Category:  genai.HarmCategoryHateSpeech,
-			Threshold: genai.HarmBlockNone,
-		},
-		{
-			Category:  genai.HarmCategorySexuallyExplicit,
-			Threshold: genai.HarmBlockNone,
-		},
-		{
-			Category:  genai.HarmCategoryDangerousContent,
-			Threshold: genai.HarmBlockNone,
-		},
-	}
-
-	cs := model.StartChat()
-	cs.History = []*genai.Content{}
-
-	// Split srt into parts
-	debugLog("Characters count:", len(transcription))
-	subtitles := parseSRT(transcription)
-	debugLog("Subtitles sections count:", len(subtitles))
-
-	var parts []string
-	var part string
-	for _, section := range subtitles {
-		part += section + "\n"
-
-		// tokResp, err := model.CountTokens(ctx, genai.Text(part))
-		// if err != nil {
-		// 	fmt.Println("Gemini API model token count error:", err)
-		// 	os.Exit(1)
-		// }
-		// fmt.Println("total_tokens:", tokResp.TotalTokens)
-
-		if len(part) > 8500 {
-			parts = append(parts, part)
-			part = ""
-		}
-	}
-	if len(part) > 0 {
-		parts = append(parts, part)
-	}
-	debugLog("Required API requests:", len(parts))
-
-	// Finally make API calls
-	var translatedSubtitles string
-	for index, section := range parts {
-		debugLog("Request #", index+1)
-		var prompt string
-		if index == 0 {
-			prompt = "Translate these SRT subtitles into english. Return them as valid SRT subtitles. Subtitles to translate:\n" + section
+	if *geminiFlag {
+		// Init Gemini model
+		myspinner := spinner.New()
+		if verboseMode {
+			fmt.Println("Translation using Google Gemini AI.")
 		} else {
-			prompt = section
+			myspinner.Start("Translation using Google Gemini AI.")
 		}
 
-		res, err := cs.SendMessage(ctx, genai.Text(prompt))
+		ctx := context.Background()
+		client, err := genai.NewClient(ctx, option.WithAPIKey(config.Key))
 		if err != nil {
-			debugLog("Gemini API error:", err)
-			debugLog("Retrying...")
-			debugLog("Request #", index+1)
-			time.Sleep(90 * time.Second)
+			fmt.Println("Gemini error:", err)
+			os.Exit(1)
+		}
+		defer client.Close()
 
-			res, err = cs.SendMessage(ctx, genai.Text(prompt))
-			if err != nil {
-				if !verboseMode {
-					myspinner.Error()
-				}
-				fmt.Println("Gemini API error:", err)
-				os.Exit(1)
+		model := client.GenerativeModel("gemini-1.5-pro")
+
+		model.SafetySettings = []*genai.SafetySetting{
+			{
+				Category:  genai.HarmCategoryHarassment,
+				Threshold: genai.HarmBlockNone,
+			},
+			{
+				Category:  genai.HarmCategoryHateSpeech,
+				Threshold: genai.HarmBlockNone,
+			},
+			{
+				Category:  genai.HarmCategorySexuallyExplicit,
+				Threshold: genai.HarmBlockNone,
+			},
+			{
+				Category:  genai.HarmCategoryDangerousContent,
+				Threshold: genai.HarmBlockNone,
+			},
+		}
+
+		cs := model.StartChat()
+		cs.History = []*genai.Content{}
+
+		// Split srt into parts
+		debugLog("Characters count:", len(transcription))
+		subtitles := parseSRT(transcription)
+		debugLog("Subtitles sections count:", len(subtitles))
+
+		var parts []string
+		var part string
+		for _, section := range subtitles {
+			part += section + "\n"
+
+			// tokResp, err := model.CountTokens(ctx, genai.Text(part))
+			// if err != nil {
+			// 	fmt.Println("Gemini API model token count error:", err)
+			// 	os.Exit(1)
+			// }
+			// fmt.Println("total_tokens:", tokResp.TotalTokens)
+
+			if len(part) > 8500 {
+				parts = append(parts, part)
+				part = ""
 			}
 		}
-		translatedSubtitles += printResponse(res)
-
-		if index != 0 {
-			time.Sleep(5 * time.Second)
+		if len(part) > 0 {
+			parts = append(parts, part)
 		}
-	}
-	if verboseMode {
-		fmt.Println("Translation done.")
-	} else {
-		myspinner.Success()
-	}
+		debugLog("Required API requests:", len(parts))
 
-	// Save translation to file
-	if err := os.WriteFile(translationFile, []byte(translatedSubtitles), 0644); err != nil {
-		fmt.Println("Error:", err)
-		os.Exit(1)
+		// Finally make API calls
+		var translatedSubtitles string
+		for index, section := range parts {
+			debugLog("Request #", index+1)
+			var prompt string
+			if index == 0 {
+				prompt = "Translate these SRT subtitles into english. Return them as valid SRT subtitles. Subtitles to translate:\n" + section
+			} else {
+				prompt = section
+			}
+
+			res, err := cs.SendMessage(ctx, genai.Text(prompt))
+			if err != nil {
+				debugLog("Gemini API error:", err)
+				debugLog("Retrying...")
+				debugLog("Request #", index+1)
+				time.Sleep(90 * time.Second)
+
+				res, err = cs.SendMessage(ctx, genai.Text(prompt))
+				if err != nil {
+					if !verboseMode {
+						myspinner.Error()
+					}
+					fmt.Println("Gemini API error:", err)
+					os.Exit(1)
+				}
+			}
+			translatedSubtitles += printResponse(res)
+
+			if index != 0 {
+				time.Sleep(5 * time.Second)
+			}
+		}
+		if verboseMode {
+			fmt.Println("Translation done.")
+		} else {
+			myspinner.Success()
+		}
+
+		// Save translation to file
+		if err := os.WriteFile(translationFile, []byte(translatedSubtitles), 0644); err != nil {
+			fmt.Println("Error:", err)
+			os.Exit(1)
+		}
+		debugLog("Created file: ", translationFile)
 	}
-	debugLog("Created file: ", translationFile)
 
 	// Move files from temp folder
-	if isSrtInput != true {
-		if moveFile(transcriptionFile, path.Join(currentDir, name+" (transcription).srt")); err != nil {
+	if *geminiFlag {
+		if isSrtInput != true {
+			if moveFile(transcriptionFile, path.Join(currentDir, name+" (transcription).srt")); err != nil {
+				fmt.Println("Error:", err)
+			}
+		}
+		if moveFile(translationFile, path.Join(currentDir, name+".srt")); err != nil {
 			fmt.Println("Error:", err)
 		}
-	}
-	if moveFile(translationFile, path.Join(currentDir, name+".srt")); err != nil {
-		fmt.Println("Error:", err)
+	} else {
+		if moveFile(transcriptionFile, path.Join(currentDir, name+".srt")); err != nil {
+			fmt.Println("Error:", err)
+		}
 	}
 
 	fmt.Println("\nSubtitles ready!")

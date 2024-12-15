@@ -1,6 +1,6 @@
 # bideo-toransureta
 
-A CLI tool for automating video transcription and translation using AI. Written in Go, it uses faster-whisper for transcription and Google Gemini for translation. Just enter the video link or file path to get translated subtitles in .srt format.
+A small CLI tool for automating video transcription and translation using AI. Written in Go, it uses faster-whisper for transcription and Google Gemini for translation. Just enter the video link or file path to get translated subtitles in .srt format.
 
 ## Requirements
 
@@ -40,6 +40,8 @@ Available args:
         Use to create or reset config file
   --debug
         Print debug info in stdout
+  -gemini
+        Translate using Google Gemini instead of Whisper
   --install
         Use to install program and needed dependencies in user home folder
   --uninstall

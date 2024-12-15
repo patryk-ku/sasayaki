@@ -27,6 +27,7 @@ def save_to_srt(segments, filename="transcription.srt"):
 model_size = argv[2]
 threads = int(argv[3])
 app_dir = argv[4]
+action = argv[5] # translate or transcribe
 print(f"Using {model_size} on {threads} cpu threads.")
 
 # Run on GPU with FP16
@@ -38,7 +39,7 @@ print(f"Using {model_size} on {threads} cpu threads.")
 # or run on CPU with INT8
 model = WhisperModel(model_size, device="cpu", compute_type="int8", cpu_threads=threads, download_root=app_dir)
 
-segments, info = model.transcribe("tmp/audio.mp3", beam_size=5)
+segments, info = model.transcribe("tmp/audio.mp3", beam_size=5, task=action)
 print("Detected language '%s' with probability %f." % (info.language, info.language_probability))
 
 save_to_srt(segments, f"tmp/{argv[1]} (transcription).srt")
