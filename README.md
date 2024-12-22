@@ -1,6 +1,8 @@
-# bideo-toransureta
+# Sasayaki
 
-A small CLI tool for automating video transcription and translation using AI. Written in Go, it uses faster-whisper for transcription and Google Gemini for translation. Just enter the video link or file path to get translated subtitles in .srt format.
+A small CLI tool for automating video transcription and translation using AI. Written in Go, it uses [**faster-whisper**](https://github.com/SYSTRAN/faster-whisper) for transcription and translation (optional translation with Google Gemini). Just enter the video link or file path to get translated subtitles in .srt format.
+
+The name Sasayaki (ささやき) means "whisper" in Japanese.
 
 ## Requirements
 
@@ -12,19 +14,21 @@ For now, this tool only works on Linux and requires these packages to be install
 
 ## Installation
 
-Download the latest executable from the [Releases](https://github.com/patryk-ku/bideo-toransureta/releases) page.
+Download the latest executable from the [Releases](https://github.com/patryk-ku/sasayaki/releases) page.
 
 ```sh
-chmod +x bideo-toransureta
-./bideo-toransureta --install
+chmod +x sasayaki
+./sasayaki --install
 ```
 
-Next open `config.toml` and insert here your Gemini API key.
+Optional:
+
+Open `config.toml` and insert here your Gemini API key.
 
 ## Usage
 
 ```sh
-./bideo-toransureta [args] <url>
+./sasayaki [args] <url>
 ```
 
 Possible urls:

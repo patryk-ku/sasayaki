@@ -1,4 +1,4 @@
-module bideo-toransureta
+module sasayaki
 
 go 1.23.4
 

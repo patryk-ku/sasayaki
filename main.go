@@ -176,9 +176,9 @@ model = "large-v3"
 
 func main() {
 	fmt.Println("")
-	fmt.Println("  \x1b[30m\x1b[47m\u001b[1mビデオトランスレーター\x1b[0m")
-	fmt.Println("  \x1b[2mbideo toransurētā         v0.1.4\x1b[0m")
-	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	fmt.Println("  \x1b[7m ささやき \x1b[0m")
+	fmt.Println("  \x1b[2m sasayaki           v0.1.5\x1b[0m")
+	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 	fmt.Println("")
 
 	// Parse args
@@ -213,7 +213,7 @@ func main() {
 		fmt.Println("Error:", err)
 		os.Exit(1)
 	}
-	appDir = path.Join(homeDir, ".bideo-toransureta")
+	appDir = path.Join(homeDir, ".sasayaki")
 	debugLog("current dir:", currentDir)
 	debugLog("app dir:", appDir)
 
@@ -305,8 +305,8 @@ func main() {
 	debugLog("------------------------")
 
 	if len(flag.Args()) < 1 {
-		fmt.Println("Usage: bideo-toransureta [args] <url>")
-		fmt.Println("Help:  bideo-toransureta -h")
+		fmt.Println("Usage: sasayaki [args] <url>")
+		fmt.Println("Help:  sasayaki -h")
 		os.Exit(0)
 	}
 
