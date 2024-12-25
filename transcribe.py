@@ -32,16 +32,13 @@ parser.add_argument('--output')
 args = parser.parse_args()
 print(args)
 
-# args.model = "large-v3"
-# args.model = "small"
 threads = int(args.threads)
-print(f"Using {args.model} on {args.threads} cpu threads.")
 
 # Run on GPU with FP16
-# model = WhisperModel(args.model, device="cuda", compute_type="float16")
+# model = WhisperModel(args.model, device="cuda", compute_type="float16", download_root=args.appdir)
 
 # or run on GPU with INT8
-# model = WhisperModel(args.model, device="cuda", compute_type="int8_float16")
+# model = WhisperModel(args.model, device="cuda", compute_type="int8_float16", download_root=args.appdir)
 
 # or run on CPU with INT8
 model = WhisperModel(args.model, device="cpu", compute_type="int8", cpu_threads=threads, download_root=args.appdir)

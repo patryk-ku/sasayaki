@@ -180,7 +180,7 @@ model = "large-v3"
 func main() {
 	fmt.Println("")
 	fmt.Println("  \x1b[7m ささやき \x1b[0m")
-	fmt.Println("  \x1b[2m sasayaki           v0.1.5\x1b[0m")
+	fmt.Println("  \x1b[2m sasayaki           v0.1.6\x1b[0m")
 	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 	fmt.Println("")
 
@@ -192,6 +192,7 @@ func main() {
 	verboseFlag := flag.Bool("verbose", false, "Print commands output in stdout")
 	debugFlag := flag.Bool("debug", false, "Print debug info in stdout")
 	geminiFlag := flag.Bool("gemini", false, "Translate using Google Gemini instead of Whisper")
+	langFlag := flag.String("lang", "english", "Specifies a target translation language when using Google Gemini")
 	flag.Parse()
 
 	if *debugFlag {
@@ -457,6 +458,7 @@ func main() {
 		cs.History = []*genai.Content{}
 
 		// Split srt into parts
+		debugLog("Translation language:", *langFlag)
 		debugLog("Characters count:", len(transcription))
 		subtitles := parseSRT(transcription)
 		debugLog("Subtitles sections count:", len(subtitles))
@@ -489,7 +491,7 @@ func main() {
 			debugLog("Request #", index+1)
 			var prompt string
 			if index == 0 {
-				prompt = "Translate these SRT subtitles into english. Return them as valid SRT subtitles. Subtitles to translate:\n" + section
+				prompt = "Translate these SRT subtitles into " + *langFlag + ". Return them as valid SRT subtitles. Subtitles to translate:\n" + section
 			} else {
 				prompt = section
 			}
@@ -554,14 +556,16 @@ func main() {
 	}
 
 	if *ytdlpFlag {
-		var srtSource string
+		var srtSource, lang string
 		if *geminiFlag {
 			srtSource = srtTranslatedTmp
+			lang = *langFlag
 		} else {
 			srtSource = srtTmp
+			lang = "eng"
 		}
 
-		runCommand("Embedding Subtitles.", "ffmpeg", "-y", "-i", videoTmp, "-i", srtSource, "-c", "copy", "-c:s", "srt", "-metadata:s:s:0", "language=eng", videoOutput)
+		runCommand("Embedding Subtitles.", "ffmpeg", "-y", "-i", videoTmp, "-i", srtSource, "-c", "copy", "-c:s", "srt", "-metadata:s:s:0", "language="+lang, videoOutput)
 
 		debugLog("Deleting file:", videoTmp)
 		os.Remove(videoTmp)
