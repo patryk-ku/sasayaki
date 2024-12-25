@@ -22,17 +22,20 @@ import (
 var pythonScript embed.FS
 
 var (
-	appDir      string
-	debugMode   bool
-	verboseMode bool
+	appDir            string
+	debugMode         bool
+	verboseMode       bool
+	commandCurrentDir bool
 )
 
 func runCommand(loadingMessage string, args ...string) {
 	cmd := exec.Command(args[0], args[1:]...)
-	cmd.Dir = appDir
+	if commandCurrentDir {
+		cmd.Dir = appDir
+	}
 
 	if verboseMode {
-		fmt.Println(loadingMessage)
+		fmt.Println("\x1b[7m ━━━ " + loadingMessage + " ━━━ \x1b[0m")
 		fmt.Println("")
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
@@ -242,6 +245,7 @@ func main() {
 		// 	fmt.Println("Program files already installed, to reinstall first uninstall using --uninstall.")
 		// 	os.Exit(1)
 		// }
+		commandCurrentDir = true
 
 		fmt.Println("Starting instalation.")
 		// Create application directory
@@ -251,8 +255,8 @@ func main() {
 		}
 		debugLog("Created application dir:", appDir)
 
-		runCommand("Creating python venv.", "python", "-m", "venv", "whisper-env")
-		runCommand("Installing dependencies.", "whisper-env/bin/pip", "install", "faster-whisper")
+		runCommand("Creating python venv.", "python", "-m", "venv", path.Join(appDir, "whisper-env"))
+		runCommand("Installing dependencies.", path.Join(appDir, "whisper-env", "bin", "pip"), "install", "faster-whisper")
 
 		// Extract python script from binary
 		myspinner := spinner.New()
@@ -329,52 +333,82 @@ func main() {
 
 	url := flag.Args()[0]
 
+	var (
+		downloadUrl         string // --ytdlp
+		videoInput          string
+		videoOutput         string // only if downloading video with yt-dlp
+		videoTmp            string // --ytdlp, tmp video file awaiting for translated subs
+		srtInput            string // only if translating .srt transcription file again
+		srtTmp              string // tmp file from python script, might be transcription or translation
+		srtTranslatedTmp    string // tmp file from Google Gemini, might be only translation
+		srtOutput           string // output file with transcription
+		srtTranslatedOutput string // output file with translated subtitles
+		outputDir           string // generated files final destination
+		fileName            string // name of input file without exctension
+	)
+
 	// Auto detect if url is a link
 	if strings.HasPrefix(url, "http://") || strings.HasPrefix(url, "https://") {
 		*ytdlpFlag = true
+		downloadUrl = url
 	}
 
 	// Download video
 	if *ytdlpFlag {
 		ytdlpNameTemplate := "%(title).150B%(title.151B&…|)s [%(display_id)s].%(ext)s"
-		cmd := exec.Command("yt-dlp", "-o", ytdlpNameTemplate, "--print", "filename", url)
+		cmd := exec.Command("yt-dlp", "--windows-filenames", "--remux-video", "mkv", "-o", ytdlpNameTemplate, "--print", "filename", url)
 		output, err := cmd.CombinedOutput()
 		if err != nil {
 			fmt.Println("yt-dlp error:", err)
 			os.Exit(1)
 		}
 		ytdlpName := path.Base(strings.TrimSpace(string(output)))
+		ytdlpName = strings.TrimSuffix(path.Base(ytdlpName), path.Ext(ytdlpName))
+		ytdlpName = ytdlpName + ".mkv"
+		videoTmp = path.Join(appDir, "tmp", ytdlpName)
 
-		runCommand("Downloading video.", "yt-dlp", "-o", path.Join(currentDir, ytdlpName), url)
-		url = ytdlpName
+		runCommand("Downloading video.", "yt-dlp", "--remux-video", "mkv", "-o", videoTmp, downloadUrl)
+		videoInput = videoTmp
 	}
 
 	// Define file names and paths
-	name := strings.TrimSuffix(path.Base(url), path.Ext(url))
 	isSrtInput := false
 	if path.Ext(url) == ".srt" {
-		name = strings.TrimSuffix(name, " (transcription)")
 		isSrtInput = true
 		*geminiFlag = true
+		srtInput = url
+		fileName = strings.TrimSuffix(path.Base(srtInput), path.Ext(srtInput))
+		fileName = strings.TrimSuffix(fileName, " (transcription)")
+	} else {
+		if !*ytdlpFlag {
+			videoInput = url
+		}
+		fileName = strings.TrimSuffix(path.Base(videoInput), path.Ext(videoInput))
 	}
-	transcriptionFile := path.Join(appDir, "tmp", name+" (transcription).srt") // this file does not exists if provided argument is .srt file
-	translationFile := path.Join(appDir, "tmp", name+".srt")
+	srtTmp = path.Join(appDir, "tmp", fileName+" (transcription).srt")
+	srtTranslatedTmp = path.Join(appDir, "tmp", fileName+".srt")
 
 	// Start transcription
 	if path.Ext(url) != ".srt" {
-		runCommand("Extracting audio from video file.", "ffmpeg", "-y", "-i", path.Join(currentDir, url), "-q:a", "0", "-map", "a", "tmp/audio.mp3")
-
-		runCommand("Transcription using Whisper AI.", "whisper-env/bin/python", "transcribe.py", name, config.Model, config.Threads, path.Join(appDir, "models"), action)
-		debugLog("Created file:", transcriptionFile)
-		url = transcriptionFile
-
 		audioFile := path.Join(appDir, "tmp", "audio.mp3")
+		runCommand("Extracting audio from video file.", "ffmpeg", "-y", "-i", videoInput, "-q:a", "0", "-map", "a", audioFile)
+
+		runCommand("Transcription using Whisper AI.", path.Join(appDir, "whisper-env", "bin", "python"), path.Join(appDir, "transcribe.py"), "--output", srtTmp, "--model", config.Model, "--threads", config.Threads, "--appdir", path.Join(appDir, "models"), "--action", action, "--input", audioFile)
+		debugLog("Created file:", srtTmp)
+
 		debugLog("Deleting file:", audioFile)
 		os.Remove(audioFile)
 	}
 
 	// Load .srt file
-	transcriptionBuff, err := os.ReadFile(url)
+	var fileToRead string
+	if isSrtInput {
+		fileToRead = srtInput
+	} else {
+		fileToRead = srtTmp
+	}
+
+	transcriptionBuff, err := os.ReadFile(fileToRead)
 	if err != nil {
 		fmt.Println("Error:", err)
 		os.Exit(1)
@@ -489,25 +523,71 @@ func main() {
 		}
 
 		// Save translation to file
-		if err := os.WriteFile(translationFile, []byte(translatedSubtitles), 0644); err != nil {
+		if err := os.WriteFile(srtTranslatedTmp, []byte(translatedSubtitles), 0644); err != nil {
 			fmt.Println("Error:", err)
 			os.Exit(1)
 		}
-		debugLog("Created file: ", translationFile)
+		debugLog("Created file: ", srtTranslatedTmp)
 	}
 
 	// Move files from temp folder
-	if *geminiFlag {
-		if isSrtInput != true {
-			if moveFile(transcriptionFile, path.Join(currentDir, name+" (transcription).srt")); err != nil {
-				fmt.Println("Error:", err)
-			}
-		}
-		if moveFile(translationFile, path.Join(currentDir, name+".srt")); err != nil {
+	if *ytdlpFlag {
+		outputDir = currentDir
+	} else if isSrtInput {
+		outputDir = path.Dir(srtInput)
+	} else {
+		outputDir = path.Dir(videoInput)
+	}
+
+	srtOutput = path.Join(outputDir, fileName+" (transcription).srt")
+	srtTranslatedOutput = path.Join(outputDir, fileName+".srt")
+	videoOutput = path.Join(outputDir, fileName+".mkv")
+
+	if isSrtInput == true {
+		if moveFile(srtTranslatedTmp, srtTranslatedOutput); err != nil {
 			fmt.Println("Error:", err)
 		}
+
+		fmt.Println("\nSubtitles ready!")
+		fmt.Println(srtTranslatedOutput)
+		os.Exit(0)
+	}
+
+	if *ytdlpFlag {
+		var srtSource string
+		if *geminiFlag {
+			srtSource = srtTranslatedTmp
+		} else {
+			srtSource = srtTmp
+		}
+
+		runCommand("Embedding Subtitles.", "ffmpeg", "-y", "-i", videoTmp, "-i", srtSource, "-c", "copy", "-c:s", "srt", "-metadata:s:s:0", "language=eng", videoOutput)
+
+		debugLog("Deleting file:", videoTmp)
+		os.Remove(videoTmp)
+		debugLog("Deleting file:", srtTmp)
+		os.Remove(srtTmp)
+		if *geminiFlag {
+			debugLog("Deleting file:", srtTranslatedTmp)
+			os.Remove(srtTranslatedTmp)
+		}
+
+		fmt.Println("\nSubtitles ready!")
+		fmt.Println(videoOutput)
+		os.Exit(0)
+	}
+
+	if *geminiFlag {
+		if moveFile(srtTmp, srtOutput); err != nil {
+			fmt.Println("Error:", err)
+		}
+
+		if moveFile(srtTranslatedTmp, srtTranslatedOutput); err != nil {
+			fmt.Println("Error:", err)
+		}
+
 	} else {
-		if moveFile(transcriptionFile, path.Join(currentDir, name+".srt")); err != nil {
+		if moveFile(srtTmp, srtTranslatedOutput); err != nil {
 			fmt.Println("Error:", err)
 		}
 	}
