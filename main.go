@@ -256,7 +256,9 @@ func main() {
 		}
 		debugLog("Created application dir:", appDir)
 
-		runCommand("Creating python venv.", "python", "-m", "venv", path.Join(appDir, "whisper-env"))
+		runCommand("Installing correct Python version using pyenv.", "pyenv", "install", "3.12", "-s")
+		runCommand("Setting local Python version.", "pyenv", "local", "3.12")
+		runCommand("Creating Python venv.", "pyenv", "exec", "python", "-m", "venv", path.Join(appDir, "whisper-env"))
 		runCommand("Installing dependencies.", path.Join(appDir, "whisper-env", "bin", "pip"), "install", "faster-whisper")
 
 		// Extract python script from binary

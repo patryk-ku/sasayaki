@@ -9,6 +9,7 @@ The name Sasayaki (ささやき) means "whisper" in Japanese.
 For now, this tool only works on Unix-like systems (only Linux tested) and requires these packages to be installed:
 
 -   python
+-   [pyenv](https://github.com/pyenv/pyenv)
 -   ffmpeg
 -   yt-dlp (optional)
 
@@ -22,7 +23,7 @@ chmod +x sasayaki
 ```
 
 > [!NOTE]
-> The `--install` parameter will create a `.sasayaki` folder in your home directory, then create a separate pyenv and download the necessary packages in it. Finally, it will create the python file needed for transcription and a configuration file. You can reverse this process with `--uninstall` or manually delete the `.sasayaki` folder.
+> The `--install` parameter will create a `.sasayaki` folder in your home directory, next it will install python 3.12 using pyenv, then create a separate venv and download the necessary packages in it. Finally, it will create the python file needed for transcription and a configuration file. You can reverse this process with `--uninstall` or manually delete the `.sasayaki` folder, but **this will not uninstall a previously installed version of Python from pyenv, you have to do it manually**.
 
 Optional:
 
