@@ -180,7 +180,7 @@ model = "large-v3"
 func main() {
 	fmt.Println("")
 	fmt.Println("  \x1b[7m ささやき \x1b[0m")
-	fmt.Println("  \x1b[2m sasayaki           v0.1.6\x1b[0m")
+	fmt.Println("  \x1b[2m sasayaki           v0.1.7\x1b[0m")
 	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 	fmt.Println("")
 
@@ -393,8 +393,9 @@ func main() {
 
 	// Start transcription
 	if path.Ext(url) != ".srt" {
-		audioFile := path.Join(appDir, "tmp", "audio.mp3")
-		runCommand("Extracting audio from video file.", "ffmpeg", "-y", "-i", videoInput, "-q:a", "0", "-map", "a", audioFile)
+		audioFile := path.Join(appDir, "tmp", "audio.wav")
+		// ffmpeg -i <video> -ar 16000 -ac 1 -c:a pcm_s16le output.wav
+		runCommand("Extracting audio from video file.", "ffmpeg", "-y", "-i", videoInput, "-ar", "16000", "-ac", "1", "-c:a", "pcm_s16le", audioFile)
 
 		runCommand("Transcription using Whisper AI.", path.Join(appDir, "whisper-env", "bin", "python"), path.Join(appDir, "transcribe.py"), "--output", srtTmp, "--model", config.Model, "--threads", config.Threads, "--appdir", path.Join(appDir, "models"), "--action", action, "--input", audioFile)
 		debugLog("Created file:", srtTmp)
