@@ -8,10 +8,10 @@ The name Sasayaki (ささやき) means "whisper" in Japanese.
 
 For now, this tool only works on Unix-like systems (only Linux tested) and requires these packages to be installed:
 
--   python
+-   [python](https://www.python.org/)
 -   [pyenv](https://github.com/pyenv/pyenv)
--   ffmpeg
--   yt-dlp (optional)
+-   [ffmpeg](https://www.ffmpeg.org/)
+-   [yt-dlp](https://github.com/yt-dlp/yt-dlp) (optional)
 
 ## Installation
 
