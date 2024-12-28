@@ -1,6 +1,6 @@
 # Sasayaki
 
-A small CLI tool for automating video transcription and translation using AI. Written in Go, it uses [**faster-whisper**](https://github.com/SYSTRAN/faster-whisper) for transcription and english translation (optional translation into other languages ​​using Google Gemini). Just enter the video link or file path to get translated subtitles in .srt format.
+A small CLI tool that simplifies and automates the process of installing and using AI models to transcribe and translate videos. Written in Go, it uses [**faster-whisper**](https://github.com/SYSTRAN/faster-whisper) for transcription and english translation (optional translation into other languages ​​using Google Gemini). Just enter the video link or file path to get translated subtitles in .srt format.
 
 The name Sasayaki (ささやき) means "whisper" in Japanese.
 
