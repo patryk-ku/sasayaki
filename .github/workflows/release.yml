@@ -24,12 +24,11 @@ jobs:
                   sudo apt install -y build-essential cmake
                   git clone https://github.com/ggerganov/whisper.cpp.git
                   cd whisper.cpp
-                  cmake -B build
-                  cmake --build build --config Release
+                  cmake -B build -DBUILD_SHARED_LIBS=OFF
+                  cmake --build build --config Release 
                   cd ..
                   whisper.cpp/build/bin/whisper-cli --help
                   cp whisper.cpp/build/bin/whisper-cli embed
-                  cp -L whisper.cpp/build/src/libwhisper.so.1 embed
 
             - name: Set up Go
               uses: actions/setup-go@v4

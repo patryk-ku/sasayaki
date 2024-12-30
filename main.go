@@ -287,21 +287,6 @@ func main() {
 			myspinner.Success()
 			runCommand("Granting execution permissions for whisper.cpp executable. ", "chmod", "+x", "whisper-cli")
 
-			myspinner = spinner.New()
-			myspinner.Start("Extracting libwhisper.so.1 from binary.")
-			whisperLib, err := embedFS.ReadFile("embed/libwhisper.so.1")
-			if err != nil {
-				myspinner.Error()
-				fmt.Println("Error:", err)
-				os.Exit(1)
-			}
-			if err := os.WriteFile(path.Join(appDir, "libwhisper.so.1"), whisperLib, 0644); err != nil {
-				myspinner.Error()
-				fmt.Println("Error:", err)
-				os.Exit(1)
-			}
-			myspinner.Success()
-
 		} else {
 			runCommand("Installing correct Python version using pyenv.", "pyenv", "install", "3.12", "-s")
 			runCommand("Setting local Python version.", "pyenv", "local", "3.12")
