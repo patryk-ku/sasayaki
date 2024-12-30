@@ -24,3 +24,6 @@ go.work.sum
 
 # env file
 .env
+
+# whisper-cli binary
+embed/whisper-cli

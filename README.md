@@ -1,6 +1,6 @@
 # Sasayaki
 
-A small CLI tool that simplifies and automates the process of installing and using AI models to transcribe and translate videos. Written in Go, it uses [**faster-whisper**](https://github.com/SYSTRAN/faster-whisper) for transcription and english translation (optional translation into other languages ​​using Google Gemini). Just enter the video link or file path to get translated subtitles in .srt format.
+A small CLI tool that simplifies and automates the process of installing and using AI models to transcribe and translate videos. Written in Go, it uses [**faster-whisper**](https://github.com/SYSTRAN/faster-whisper) or [**whisper.cpp**](https://github.com/ggerganov/whisper.cpp) for transcription and english translation (optional translation into other languages ​​using **Google Gemini**). Just enter the video link or file path to get translated subtitles in .srt format.
 
 The name Sasayaki (ささやき) means "whisper" in Japanese.
 
@@ -8,29 +8,51 @@ The name Sasayaki (ささやき) means "whisper" in Japanese.
 
 For now, this tool only works on Unix-like systems (only Linux tested) and requires these packages to be installed:
 
--   [python](https://www.python.org/)
--   [pyenv](https://github.com/pyenv/pyenv)
 -   [ffmpeg](https://www.ffmpeg.org/)
 -   [yt-dlp](https://github.com/yt-dlp/yt-dlp) (optional)
 
+faster-whisper version requires also:
+
+-   [python](https://www.python.org/)
+-   [pyenv](https://github.com/pyenv/pyenv)
+
 ## Installation
 
-Download the latest executable from the [Releases](https://github.com/patryk-ku/sasayaki/releases) page.
+Download the latest executable from the [Releases](https://github.com/patryk-ku/sasayaki/releases) page. Next:
 
 ```sh
 chmod +x sasayaki
+```
+
+### faster-whisper version (requires python)
+
+```sh
 ./sasayaki --install
 ```
 
+### whisper.cpp version
+
+```sh
+./sasayaki --install --cpp
+```
+
+### both versions
+
+```sh
+./sasayaki --install
+./sasayaki --install --cpp
+```
+
 > [!NOTE]
-> The `--install` parameter will create a `.sasayaki` folder in your home directory, next it will install python 3.12 using pyenv, then create a separate venv and download the necessary packages in it. Finally, it will create the python file needed for transcription and a configuration file. You can reverse this process with `--uninstall` or manually delete the `.sasayaki` folder, but **this will not uninstall a previously installed version of Python from pyenv, you have to do it manually**.
+> The `--install` parameter will create a `.sasayaki` folder in your home directory, next it will install python 3.12 using pyenv, then create a separate venv and download the necessary packages in it. Finally, it will create the python file needed for transcription and a configuration file. If you chose the whisper.cpp version, all Python-related elements will be skipped, and an executable file named whisper-cli will be created in the program directory. You can reverse this process with `--uninstall` or manually delete the `.sasayaki` folder, but **this will not uninstall a previously installed version of Python from pyenv, you have to do it manually**.
 
 Optional:
 
 -   Open `config.toml` and insert here your Gemini API key.
 -   Set cpu threads and model size in `config.toml`
 -   Add `sasayaki` binary to PATH
--   (advanced) Edit `transcribe.py` to enable running model on GPU (look for commented lines)
+-   _(advanced)_ Edit `transcribe.py` to enable running model on GPU (look for commented lines)
+-   _(advanced)_ Compile whisper.cpp yourself with the parameters that enable GPU acceleration and replace whisper-cli in the program directory with your own executable
 
 ## Usage
 
@@ -49,6 +71,8 @@ Available args:
 ```
   --config
         Use to create or reset config file
+  --cpp
+        Transcribe using whisper.cpp instead of faster-whisper
   --debug
         Print debug info in stdout
   --gemini
@@ -70,6 +94,9 @@ Examples:
 ```sh
 # Create english subtitles using only faster-whisper
 sasayaki input.mp4
+
+# Create english subtitles using only whisper.cpp
+sasayaki --cpp input.mp4
 
 # Create english subtitles using faster-whisper and Google Gemini
 sasayaki --gemini input.mp4
@@ -94,7 +121,15 @@ sasayaki --gemini --lang korean 'input (transcription).srt'
 
 ## Compile from source
 
+If you want to use whisper.cpp, you must compile it yourself and then copy the `whisper-cli` binary into the `embed` folder.
+
 ```sh
 go mod tidy
 go build -ldflags "-w -s"
 ```
+
+## External Licenses
+
+This project includes a compiled binary file from the [whisper.cpp](https://github.com/ggerganov/whisper.cpp) project, which is licensed under the MIT license.
+
+The full text of the MIT license can be found in the [LICENSE](https://github.com/ggerganov/whisper.cpp/blob/master/LICENSE) file in the whisper.cpp repository.
