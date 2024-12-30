@@ -27,3 +27,4 @@ go.work.sum
 
 # whisper-cli binary
 embed/whisper-cli
+embed/libwhisper.so.1
