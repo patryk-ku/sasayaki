@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"embed"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -18,8 +19,8 @@ import (
 	"google.golang.org/api/option"
 )
 
-//go:embed transcribe.py
-var pythonScript embed.FS
+//go:embed embed
+var embedFS embed.FS
 
 var (
 	appDir            string
@@ -109,6 +110,11 @@ func parseSRT(text string) []string {
 	return sections
 }
 
+func fileExists(filePath string) bool {
+	_, error := os.Stat(filePath)
+	return !errors.Is(error, os.ErrNotExist)
+}
+
 func folderExists(path string) bool {
 	info, err := os.Stat(path)
 	if err != nil {
@@ -180,7 +186,7 @@ model = "large-v3"
 func main() {
 	fmt.Println("")
 	fmt.Println("  \x1b[7m ささやき \x1b[0m")
-	fmt.Println("  \x1b[2m sasayaki           v0.1.7\x1b[0m")
+	fmt.Println("  \x1b[2m sasayaki           v0.1.8\x1b[0m")
 	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 	fmt.Println("")
 
@@ -193,6 +199,7 @@ func main() {
 	debugFlag := flag.Bool("debug", false, "Print debug info in stdout")
 	geminiFlag := flag.Bool("gemini", false, "Translate using Google Gemini instead of Whisper")
 	langFlag := flag.String("lang", "english", "Specifies a target translation language when using Google Gemini")
+	cppFlag := flag.Bool("cpp", false, "Transcribe using whisper.cpp instead of faster-whisper")
 	flag.Parse()
 
 	if *debugFlag {
@@ -255,6 +262,11 @@ func main() {
 			os.Exit(1)
 		}
 		debugLog("Created application dir:", appDir)
+		// Create models directory
+		if err := os.MkdirAll(path.Join(appDir, "models"), os.ModePerm); err != nil {
+			fmt.Println("Error:", err)
+			os.Exit(1)
+		}
 
 		runCommand("Installing correct Python version using pyenv.", "pyenv", "install", "3.12", "-s")
 		runCommand("Setting local Python version.", "pyenv", "local", "3.12")
@@ -264,23 +276,44 @@ func main() {
 		// Extract python script from binary
 		myspinner := spinner.New()
 		myspinner.Start("Extracting python script from binary.")
-		data, err := pythonScript.ReadFile("transcribe.py")
+		pythonScript, err := embedFS.ReadFile("embed/transcribe.py")
 		if err != nil {
 			fmt.Println("Error:", err)
 			os.Exit(1)
 		}
-		if err := os.WriteFile(path.Join(appDir, "transcribe.py"), data, 0644); err != nil {
+		if err := os.WriteFile(path.Join(appDir, "transcribe.py"), pythonScript, 0644); err != nil {
 			myspinner.Error()
 			fmt.Println("Error:", err)
 			os.Exit(1)
 		}
 		myspinner.Success()
 
+		// Extract whisper.cpp (optional)
+		if *cppFlag {
+			myspinner = spinner.New()
+			myspinner.Start("Extracting whisper.cpp from binary (optional).")
+			whisperCli, err := embedFS.ReadFile("embed/whisper-cli")
+			if err != nil {
+				myspinner.Error()
+				fmt.Println("Error:", err)
+				os.Exit(1)
+			} else {
+				if err := os.WriteFile(path.Join(appDir, "whisper-cli"), whisperCli, 0644); err != nil {
+					myspinner.Error()
+					fmt.Println("Error:", err)
+					os.Exit(1)
+				} else {
+					myspinner.Success()
+					runCommand("Granting execution permissions for whisper.cpp executable. ", "chmod", "+x", "whisper-cli")
+				}
+			}
+		}
+
 		generateConfig()
 
 		fmt.Println("\nInstallation completed.")
 		fmt.Println("TIP: Insert your Google Gemini API key in config file.")
-		fmt.Println("Config file location:", path.Join(appDir, "config.toml"))
+		// fmt.Println("Config file location:", path.Join(appDir, "config.toml"))
 		os.Exit(0)
 	}
 
@@ -321,6 +354,22 @@ func main() {
 		fmt.Println("Missing Google Gemini API key in config file.")
 		fmt.Println("Config file location:", path.Join(appDir, "config.toml"))
 		os.Exit(1)
+	}
+
+	if *cppFlag {
+		if !fileExists(path.Join(appDir, "whisper-cli")) {
+			fmt.Println("Error: whisper.cpp binary not found.")
+			fmt.Println("TIP: You can install it using: --cpp --install arguments. Warning: This will overwrite your config file with default one.")
+			os.Exit(1)
+		}
+	}
+
+	// Download whisper.cpp model if --cpp enabled
+	if *cppFlag {
+		modelPath := path.Join(appDir, "models", "ggml-"+config.Model+".bin")
+		if !fileExists(modelPath) {
+			runCommand("Downloading whisper.cpp model ("+"ggml-"+config.Model+".bin"+").", "curl", "-L", "-o", modelPath, "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-"+config.Model+".bin")
+		}
 	}
 
 	// Clear tmp dir
@@ -389,6 +438,7 @@ func main() {
 		fileName = strings.TrimSuffix(path.Base(videoInput), path.Ext(videoInput))
 	}
 	srtTmp = path.Join(appDir, "tmp", fileName+" (transcription).srt")
+	nameForCppExecutable := path.Join(appDir, "tmp", fileName+" (transcription)") // without extension
 	srtTranslatedTmp = path.Join(appDir, "tmp", fileName+".srt")
 
 	// Start transcription
@@ -397,7 +447,17 @@ func main() {
 		// ffmpeg -i <video> -ar 16000 -ac 1 -c:a pcm_s16le output.wav
 		runCommand("Extracting audio from video file.", "ffmpeg", "-y", "-i", videoInput, "-ar", "16000", "-ac", "1", "-c:a", "pcm_s16le", audioFile)
 
-		runCommand("Transcription using Whisper AI.", path.Join(appDir, "whisper-env", "bin", "python"), path.Join(appDir, "transcribe.py"), "--output", srtTmp, "--model", config.Model, "--threads", config.Threads, "--appdir", path.Join(appDir, "models"), "--action", action, "--input", audioFile)
+		if *cppFlag {
+			translate := "false"
+			if action == "translate" {
+				translate = "true"
+			}
+
+			// TODO: --prompt
+			runCommand("Transcription using whisper.cpp.", path.Join(appDir, "whisper-cli"), "--threads", config.Threads, "--translate", translate, "--output-srt", "--output-file", nameForCppExecutable, "--language", "auto", "--model", path.Join(appDir, "models", "ggml-"+config.Model+".bin"), "--file", audioFile)
+		} else {
+			runCommand("Transcription using faster-whisper.", path.Join(appDir, "whisper-env", "bin", "python"), path.Join(appDir, "transcribe.py"), "--output", srtTmp, "--model", config.Model, "--threads", config.Threads, "--appdir", path.Join(appDir, "models"), "--action", action, "--input", audioFile)
+		}
 		debugLog("Created file:", srtTmp)
 
 		debugLog("Deleting file:", audioFile)
