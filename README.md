@@ -51,8 +51,8 @@ Optional:
 -   Open `config.toml` and insert here your Gemini API key.
 -   Set cpu threads and model size in `config.toml`
 -   Add `sasayaki` binary to PATH
--   (advanced) Edit `transcribe.py` to enable running model on GPU (look for commented lines)
--   (advanced) Compile whisper.cpp yourself with the parameters that enable GPU acceleration and replace whisper-cli in the program directory with your own executable.
+-   _(advanced)_ Edit `transcribe.py` to enable running model on GPU (look for commented lines)
+-   _(advanced)_ Compile whisper.cpp yourself with the parameters that enable GPU acceleration and replace whisper-cli in the program directory with your own executable
 
 ## Usage
 
