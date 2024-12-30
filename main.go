@@ -174,7 +174,8 @@ key = "insert-key-here"
 threads = "8"
 
 # Chose fast-whisper model
-model = "large-v3"
+# example: large-v3, medium, small, tiny
+model = "medium"
 `
 	if err := os.WriteFile(path.Join(appDir, "config.toml"), []byte(configText), 0644); err != nil {
 		fmt.Println("Error:", err)
@@ -268,30 +269,10 @@ func main() {
 			os.Exit(1)
 		}
 
-		runCommand("Installing correct Python version using pyenv.", "pyenv", "install", "3.12", "-s")
-		runCommand("Setting local Python version.", "pyenv", "local", "3.12")
-		runCommand("Creating Python venv.", "pyenv", "exec", "python", "-m", "venv", path.Join(appDir, "whisper-env"))
-		runCommand("Installing dependencies.", path.Join(appDir, "whisper-env", "bin", "pip"), "install", "faster-whisper")
-
-		// Extract python script from binary
-		myspinner := spinner.New()
-		myspinner.Start("Extracting python script from binary.")
-		pythonScript, err := embedFS.ReadFile("embed/transcribe.py")
-		if err != nil {
-			fmt.Println("Error:", err)
-			os.Exit(1)
-		}
-		if err := os.WriteFile(path.Join(appDir, "transcribe.py"), pythonScript, 0644); err != nil {
-			myspinner.Error()
-			fmt.Println("Error:", err)
-			os.Exit(1)
-		}
-		myspinner.Success()
-
-		// Extract whisper.cpp (optional)
+		// Install python version or c++ version
 		if *cppFlag {
-			myspinner = spinner.New()
-			myspinner.Start("Extracting whisper.cpp from binary (optional).")
+			myspinner := spinner.New()
+			myspinner.Start("Extracting whisper.cpp from binary.")
 			whisperCli, err := embedFS.ReadFile("embed/whisper-cli")
 			if err != nil {
 				myspinner.Error()
@@ -307,6 +288,26 @@ func main() {
 					runCommand("Granting execution permissions for whisper.cpp executable. ", "chmod", "+x", "whisper-cli")
 				}
 			}
+		} else {
+			runCommand("Installing correct Python version using pyenv.", "pyenv", "install", "3.12", "-s")
+			runCommand("Setting local Python version.", "pyenv", "local", "3.12")
+			runCommand("Creating Python venv.", "pyenv", "exec", "python", "-m", "venv", path.Join(appDir, "whisper-env"))
+			runCommand("Installing dependencies.", path.Join(appDir, "whisper-env", "bin", "pip"), "install", "faster-whisper")
+
+			// Extract python script from binary
+			myspinner := spinner.New()
+			myspinner.Start("Extracting python script from binary.")
+			pythonScript, err := embedFS.ReadFile("embed/transcribe.py")
+			if err != nil {
+				fmt.Println("Error:", err)
+				os.Exit(1)
+			}
+			if err := os.WriteFile(path.Join(appDir, "transcribe.py"), pythonScript, 0644); err != nil {
+				myspinner.Error()
+				fmt.Println("Error:", err)
+				os.Exit(1)
+			}
+			myspinner.Success()
 		}
 
 		generateConfig()
