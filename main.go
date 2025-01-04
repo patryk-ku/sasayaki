@@ -188,7 +188,7 @@ model = "medium"
 func main() {
 	fmt.Println("")
 	fmt.Println("  \x1b[7m ささやき \x1b[0m")
-	fmt.Println("  \x1b[2m sasayaki           v0.1.8\x1b[0m")
+	fmt.Println("  \x1b[2m sasayaki           v0.1.9\x1b[0m")
 	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 	fmt.Println("")
 
@@ -421,6 +421,12 @@ func main() {
 	if *ytdlpFlag {
 		ytdlpNameTemplate := "%(title).150B%(title.151B&…|)s [%(display_id)s].%(ext)s"
 		cmd := exec.Command("yt-dlp", "--windows-filenames", "--remux-video", "mkv", "-o", ytdlpNameTemplate, "--print", "filename", url)
+
+		// Tmp fix for Windows cmd output not in utf-8
+		if runtime.GOOS == "windows" {
+			cmd.Args = append(cmd.Args, "--restrict-filenames")
+		}
+
 		output, err := cmd.CombinedOutput()
 		if err != nil {
 			fmt.Println("yt-dlp error:", err)
