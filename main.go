@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"runtime"
 	"strings"
 	"time"
 
@@ -214,6 +215,14 @@ func main() {
 		action = "transcribe"
 	}
 
+	// Detect OS and set OS specific variables
+	var whisperCppFile string
+	if runtime.GOOS == "windows" {
+		whisperCppFile = "whisper-cli.exe"
+	} else {
+		whisperCppFile = "whisper-cli"
+	}
+
 	// path variables
 	currentDir, err := os.Getwd()
 	if err != nil {
@@ -273,19 +282,22 @@ func main() {
 		if *cppFlag {
 			myspinner := spinner.New()
 			myspinner.Start("Extracting whisper.cpp from binary.")
-			whisperCli, err := embedFS.ReadFile("embed/whisper-cli")
+			whisperCli, err := embedFS.ReadFile("embed/" + whisperCppFile)
 			if err != nil {
 				myspinner.Error()
 				fmt.Println("Error:", err)
 				os.Exit(1)
 			}
-			if err := os.WriteFile(path.Join(appDir, "whisper-cli"), whisperCli, 0644); err != nil {
+			if err := os.WriteFile(path.Join(appDir, whisperCppFile), whisperCli, 0644); err != nil {
 				myspinner.Error()
 				fmt.Println("Error:", err)
 				os.Exit(1)
 			}
 			myspinner.Success()
-			runCommand("Granting execution permissions for whisper.cpp executable. ", "chmod", "+x", "whisper-cli")
+
+			if runtime.GOOS != "windows" {
+				runCommand("Granting execution permissions for whisper.cpp executable. ", "chmod", "+x", "whisper-cli")
+			}
 
 		} else {
 			runCommand("Installing correct Python version using pyenv.", "pyenv", "install", "3.12", "-s")
@@ -357,7 +369,7 @@ func main() {
 	}
 
 	if *cppFlag {
-		if !fileExists(path.Join(appDir, "whisper-cli")) {
+		if !fileExists(path.Join(appDir, whisperCppFile)) {
 			fmt.Println("Error: whisper.cpp binary not found.")
 			fmt.Println("TIP: You can install it using: --cpp --install arguments. Warning: This will overwrite your config file with default one.")
 			os.Exit(1)
@@ -454,7 +466,7 @@ func main() {
 			}
 
 			// TODO: --prompt
-			runCommand("Transcription using whisper.cpp.", path.Join(appDir, "whisper-cli"), "--threads", config.Threads, "--translate", translate, "--output-srt", "--output-file", nameForCppExecutable, "--language", "auto", "--model", path.Join(appDir, "models", "ggml-"+config.Model+".bin"), "--file", audioFile)
+			runCommand("Transcription using whisper.cpp.", path.Join(appDir, whisperCppFile), "--threads", config.Threads, "--translate", translate, "--output-srt", "--output-file", nameForCppExecutable, "--language", "auto", "--model", path.Join(appDir, "models", "ggml-"+config.Model+".bin"), "--file", audioFile)
 		} else {
 			runCommand("Transcription using faster-whisper.", path.Join(appDir, "whisper-env", "bin", "python"), path.Join(appDir, "transcribe.py"), "--output", srtTmp, "--model", config.Model, "--threads", config.Threads, "--appdir", path.Join(appDir, "models"), "--action", action, "--input", audioFile)
 		}
