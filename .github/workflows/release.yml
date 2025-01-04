@@ -31,8 +31,8 @@ jobs:
                   cmake -B build -DBUILD_SHARED_LIBS=OFF
                   cmake --build build --config Release 
                   cd ..
-                  whisper.cpp\build\bin\whisper-cli.exe --help
-                  copy whisper.cpp\build\bin\whisper-cli.exe embed
+                  .\whisper.cpp\build\bin\whisper-cli.exe --help
+                  copy .\whisper.cpp\build\bin\whisper-cli.exe embed
 
             - name: Set up Go
               uses: actions/setup-go@v4
@@ -43,7 +43,7 @@ jobs:
               run: |
                   go mod tidy
                   go build -ldflags "-w -s"
-                  sasayaki.exe
+                  .\sasayaki.exe
 
             - name: GH Release
               uses: softprops/action-gh-release@v2
