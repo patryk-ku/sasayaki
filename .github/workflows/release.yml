@@ -9,7 +9,49 @@ on:
             - '**'
 
 jobs:
-    release:
+    release-windows:
+        runs-on: windows-latest
+
+        permissions:
+            contents: write
+
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Set up CMake
+              uses: lukka/get-cmake@latest
+
+            - name: Add msbuild to PATH
+              uses: microsoft/setup-msbuild@v2
+
+            - name: Build whisper.cpp
+              run: |
+                  git clone https://github.com/ggerganov/whisper.cpp.git
+                  cd whisper.cpp
+                  cmake -B build -DBUILD_SHARED_LIBS=OFF
+                  cmake --build build --config Release 
+                  cd ..
+                  whisper.cpp\build\bin\whisper-cli.exe --help
+                  copy whisper.cpp\build\bin\whisper-cli.exe embed
+
+            - name: Set up Go
+              uses: actions/setup-go@v4
+              with:
+                  go-version: 'stable'
+
+            - name: Build
+              run: |
+                  go mod tidy
+                  go build -ldflags "-w -s"
+                  sasayaki.exe
+
+            - name: GH Release
+              uses: softprops/action-gh-release@v2
+              if: startsWith(github.ref, 'refs/tags/')
+              with:
+                  files: sasayaki.exe
+
+    release-linux:
         runs-on: ubuntu-latest
 
         permissions:
