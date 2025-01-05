@@ -207,9 +207,12 @@ key = "insert-key-here"
 # Your CPU threads
 threads = "8"
 
-# Chose fast-whisper model
+# Chose whisper model
 # example: large-v3, medium, small, tiny
 model = "medium"
+
+# Force usage of whisper.cpp version without --cpp argument
+cpp = false
 `
 	if err := os.WriteFile(path.Join(appDir, "config.toml"), []byte(configText), 0644); err != nil {
 		printError(err)
@@ -383,6 +386,7 @@ func main() {
 		Key     string
 		Threads string
 		Model   string
+		Cpp     bool
 	}
 	var config Config
 	if _, err := toml.DecodeFile(path.Join(appDir, "config.toml"), &config); err != nil {
@@ -405,6 +409,10 @@ func main() {
 		printError(errors.New("Missing Google Gemini API key in config file."))
 		fmt.Println("Config file location:", path.Join(appDir, "config.toml"))
 		os.Exit(1)
+	}
+
+	if config.Cpp {
+		*cppFlag = true
 	}
 
 	if *cppFlag {
