@@ -290,6 +290,12 @@ func main() {
 		os.Exit(0)
 	}
 
+	// Exit if not using whisper.cpp on Windows
+	if !*cppFlag && runtime.GOOS == "windows" {
+		fmt.Println("The faster-whisper version does not work on Windows because pyenv is not available for Windows. You need to use the whisper.cpp version by passing the --cpp argument.")
+		os.Exit(1)
+	}
+
 	// --install
 	if *installFlag {
 		// if folderExists(appDir) {
