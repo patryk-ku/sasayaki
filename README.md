@@ -144,6 +144,10 @@ go mod tidy
 go build -ldflags "-w -s"
 ```
 
+## Changelog
+
+[CHANGELOG.md](.github/CHANGELOG.md)
+
 ## External Licenses
 
 This project includes a compiled binary file from the [whisper.cpp](https://github.com/ggerganov/whisper.cpp) project, which is licensed under the MIT license. The full text of the MIT license can be found in the [LICENSE](https://github.com/ggerganov/whisper.cpp/blob/master/LICENSE) file in the whisper.cpp repository.
