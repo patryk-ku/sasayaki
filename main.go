@@ -7,9 +7,11 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"path"
+	"runtime"
 	"strings"
 	"time"
 
@@ -29,6 +31,26 @@ var (
 	commandCurrentDir bool
 )
 
+var (
+	redANSI    = "\033[31m"
+	yellowANSI = "\033[33m"
+	invertANSI = "\033[7m"
+	dimANSI    = "\033[2m"
+	resetANSI  = "\033[0m"
+)
+
+func debugLog(a ...any) {
+	if debugMode {
+		fmt.Print(yellowANSI + " [debug] ")
+		fmt.Println(a...)
+		fmt.Print(resetANSI)
+	}
+}
+
+func printError(err error) {
+	fmt.Println(redANSI+"Error:", err, resetANSI)
+}
+
 func runCommand(loadingMessage string, args ...string) {
 	cmd := exec.Command(args[0], args[1:]...)
 	if commandCurrentDir {
@@ -36,14 +58,15 @@ func runCommand(loadingMessage string, args ...string) {
 	}
 
 	if verboseMode {
-		fmt.Println("\x1b[7m ━━━ " + loadingMessage + " ━━━ \x1b[0m")
+		fmt.Println(invertANSI, "━━━", loadingMessage, "━━━", resetANSI)
 		fmt.Println("")
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 
 		if err := cmd.Run(); err != nil {
-			fmt.Println("Command: ", args)
-			fmt.Println("Error:", err)
+			fmt.Println("Command failed:")
+			fmt.Println(strings.Join(args, " "))
+			printError(err)
 			os.Exit(1)
 		}
 		fmt.Println("")
@@ -55,8 +78,9 @@ func runCommand(loadingMessage string, args ...string) {
 		if err != nil {
 			myspinner.Error()
 			fmt.Appendln(stdout)
-			fmt.Println("Command: ", args)
-			fmt.Println("Error:", err)
+			fmt.Println("Command failed:")
+			fmt.Println(strings.Join(args, " "))
+			printError(err)
 			os.Exit(1)
 		}
 
@@ -68,7 +92,7 @@ func printResponse(resp *genai.GenerateContentResponse) string {
 	var text string
 	for _, cand := range resp.Candidates {
 		if cand.FinishReason != genai.FinishReasonStop {
-			fmt.Println("\033[31mFinish reason other than [STOP]\033[0m")
+			fmt.Println(redANSI + "Finish reason other than [STOP]" + resetANSI)
 			fmt.Println("Finish reason:", cand.FinishReason)
 		}
 
@@ -155,15 +179,25 @@ func moveFile(sourcePath, destPath string) error {
 	return nil
 }
 
-func debugLog(a ...any) {
-	if debugMode {
-		yellow := "\033[33m"
-		reset := "\033[0m"
-
-		fmt.Print(yellow + " [debug] ")
-		fmt.Println(a...)
-		fmt.Print(reset)
+// https://gophercoding.com/download-a-file/
+func downloadFile(url string, filepath string) error {
+	// Get the data
+	resp, err := http.Get(url)
+	if err != nil {
+		return err
 	}
+	defer resp.Body.Close()
+
+	// Create the file
+	out, err := os.Create(filepath)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	// Write the body to file
+	_, err = io.Copy(out, resp.Body)
+	return err
 }
 
 func generateConfig() {
@@ -173,12 +207,15 @@ key = "insert-key-here"
 # Your CPU threads
 threads = "8"
 
-# Chose fast-whisper model
+# Chose whisper model
 # example: large-v3, medium, small, tiny
 model = "medium"
+
+# Force usage of whisper.cpp version without --cpp argument
+cpp = false
 `
 	if err := os.WriteFile(path.Join(appDir, "config.toml"), []byte(configText), 0644); err != nil {
-		fmt.Println("Error:", err)
+		printError(err)
 		os.Exit(1)
 	}
 	fmt.Println("Created config file:", path.Join(appDir, "config.toml"))
@@ -186,8 +223,8 @@ model = "medium"
 
 func main() {
 	fmt.Println("")
-	fmt.Println("  \x1b[7m ささやき \x1b[0m")
-	fmt.Println("  \x1b[2m sasayaki           v0.1.8\x1b[0m")
+	fmt.Println(" ", invertANSI, "ささやき", resetANSI)
+	fmt.Println(" ", dimANSI, "sasayaki           v0.1.9", resetANSI)
 	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 	fmt.Println("")
 
@@ -214,15 +251,23 @@ func main() {
 		action = "transcribe"
 	}
 
+	// Detect OS and set OS specific variables
+	var whisperCppFile string
+	if runtime.GOOS == "windows" {
+		whisperCppFile = "whisper-cli.exe"
+	} else {
+		whisperCppFile = "whisper-cli"
+	}
+
 	// path variables
 	currentDir, err := os.Getwd()
 	if err != nil {
-		fmt.Println(err)
+		printError(err)
 		os.Exit(1)
 	}
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		fmt.Println("Error:", err)
+		printError(err)
 		os.Exit(1)
 	}
 	appDir = path.Join(homeDir, ".sasayaki")
@@ -241,11 +286,17 @@ func main() {
 
 		err := os.RemoveAll(appDir)
 		if err != nil {
-			fmt.Println("Error:", err)
+			printError(err)
 			os.Exit(1)
 		}
 		fmt.Println("\nSuccessfully uninstalled.")
 		os.Exit(0)
+	}
+
+	// Exit if not using whisper.cpp on Windows
+	if !*cppFlag && runtime.GOOS == "windows" {
+		fmt.Println("The faster-whisper version does not work on Windows because pyenv is not available for Windows. You need to use the whisper.cpp version by passing the --cpp argument.")
+		os.Exit(1)
 	}
 
 	// --install
@@ -259,13 +310,13 @@ func main() {
 		fmt.Println("Starting instalation.")
 		// Create application directory
 		if err := os.MkdirAll(path.Join(appDir, "tmp"), os.ModePerm); err != nil {
-			fmt.Println("Error:", err)
+			printError(err)
 			os.Exit(1)
 		}
 		debugLog("Created application dir:", appDir)
 		// Create models directory
 		if err := os.MkdirAll(path.Join(appDir, "models"), os.ModePerm); err != nil {
-			fmt.Println("Error:", err)
+			printError(err)
 			os.Exit(1)
 		}
 
@@ -273,19 +324,22 @@ func main() {
 		if *cppFlag {
 			myspinner := spinner.New()
 			myspinner.Start("Extracting whisper.cpp from binary.")
-			whisperCli, err := embedFS.ReadFile("embed/whisper-cli")
+			whisperCli, err := embedFS.ReadFile("embed/" + whisperCppFile)
 			if err != nil {
 				myspinner.Error()
-				fmt.Println("Error:", err)
+				printError(err)
 				os.Exit(1)
 			}
-			if err := os.WriteFile(path.Join(appDir, "whisper-cli"), whisperCli, 0644); err != nil {
+			if err := os.WriteFile(path.Join(appDir, whisperCppFile), whisperCli, 0644); err != nil {
 				myspinner.Error()
-				fmt.Println("Error:", err)
+				printError(err)
 				os.Exit(1)
 			}
 			myspinner.Success()
-			runCommand("Granting execution permissions for whisper.cpp executable. ", "chmod", "+x", "whisper-cli")
+
+			if runtime.GOOS != "windows" {
+				runCommand("Granting execution permissions for whisper.cpp executable. ", "chmod", "+x", "whisper-cli")
+			}
 
 		} else {
 			runCommand("Installing correct Python version using pyenv.", "pyenv", "install", "3.12", "-s")
@@ -298,12 +352,12 @@ func main() {
 			myspinner.Start("Extracting python script from binary.")
 			pythonScript, err := embedFS.ReadFile("embed/transcribe.py")
 			if err != nil {
-				fmt.Println("Error:", err)
+				printError(err)
 				os.Exit(1)
 			}
 			if err := os.WriteFile(path.Join(appDir, "transcribe.py"), pythonScript, 0644); err != nil {
 				myspinner.Error()
-				fmt.Println("Error:", err)
+				printError(err)
 				os.Exit(1)
 			}
 			myspinner.Success()
@@ -313,7 +367,6 @@ func main() {
 
 		fmt.Println("\nInstallation completed.")
 		fmt.Println("TIP: Insert your Google Gemini API key in config file.")
-		// fmt.Println("Config file location:", path.Join(appDir, "config.toml"))
 		os.Exit(0)
 	}
 
@@ -333,10 +386,12 @@ func main() {
 		Key     string
 		Threads string
 		Model   string
+		Cpp     bool
 	}
 	var config Config
 	if _, err := toml.DecodeFile(path.Join(appDir, "config.toml"), &config); err != nil {
-		fmt.Println("Config file error:", err)
+		fmt.Println("Config file error.")
+		printError(err)
 		os.Exit(1)
 	}
 	debugLog("-------- Config --------")
@@ -351,14 +406,18 @@ func main() {
 	}
 
 	if (config.Key == "insert-key-here") && *geminiFlag {
-		fmt.Println("Missing Google Gemini API key in config file.")
+		printError(errors.New("Missing Google Gemini API key in config file."))
 		fmt.Println("Config file location:", path.Join(appDir, "config.toml"))
 		os.Exit(1)
 	}
 
+	if config.Cpp {
+		*cppFlag = true
+	}
+
 	if *cppFlag {
-		if !fileExists(path.Join(appDir, "whisper-cli")) {
-			fmt.Println("Error: whisper.cpp binary not found.")
+		if !fileExists(path.Join(appDir, whisperCppFile)) {
+			printError(errors.New("whisper.cpp binary not found."))
 			fmt.Println("TIP: You can install it using: --cpp --install arguments. Warning: This will overwrite your config file with default one.")
 			os.Exit(1)
 		}
@@ -366,19 +425,30 @@ func main() {
 
 	// Download whisper.cpp model if --cpp enabled
 	if *cppFlag {
-		modelPath := path.Join(appDir, "models", "ggml-"+config.Model+".bin")
+		modelName := "ggml-" + config.Model + ".bin"
+		modelPath := path.Join(appDir, "models", modelName)
+
 		if !fileExists(modelPath) {
-			runCommand("Downloading whisper.cpp model ("+"ggml-"+config.Model+".bin"+").", "curl", "-L", "-o", modelPath, "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-"+config.Model+".bin")
+			myspinner := spinner.New()
+			myspinner.Start("Downloading whisper.cpp model (" + modelName + ").")
+
+			err := downloadFile("https://huggingface.co/ggerganov/whisper.cpp/resolve/main/"+modelName, modelPath)
+			if err != nil {
+				myspinner.Error()
+				printError(err)
+				os.Exit(1)
+			}
+			myspinner.Success()
 		}
 	}
 
 	// Clear tmp dir
 	if err := os.RemoveAll(path.Join(appDir, "tmp")); err != nil {
-		fmt.Println("Error:", err)
+		printError(err)
 		os.Exit(1)
 	}
 	if err := os.MkdirAll(path.Join(appDir, "tmp"), os.ModePerm); err != nil {
-		fmt.Println("Error:", err)
+		printError(err)
 		os.Exit(1)
 	}
 	debugLog("Cleared dir:", path.Join(appDir, "tmp"))
@@ -409,9 +479,16 @@ func main() {
 	if *ytdlpFlag {
 		ytdlpNameTemplate := "%(title).150B%(title.151B&…|)s [%(display_id)s].%(ext)s"
 		cmd := exec.Command("yt-dlp", "--windows-filenames", "--remux-video", "mkv", "-o", ytdlpNameTemplate, "--print", "filename", url)
+
+		// Tmp fix for Windows cmd output not in utf-8
+		if runtime.GOOS == "windows" {
+			cmd.Args = append(cmd.Args, "--restrict-filenames")
+		}
+
 		output, err := cmd.CombinedOutput()
 		if err != nil {
-			fmt.Println("yt-dlp error:", err)
+			fmt.Println("yt-dlp error.")
+			printError(err)
 			os.Exit(1)
 		}
 		ytdlpName := path.Base(strings.TrimSpace(string(output)))
@@ -454,7 +531,7 @@ func main() {
 			}
 
 			// TODO: --prompt
-			runCommand("Transcription using whisper.cpp.", path.Join(appDir, "whisper-cli"), "--threads", config.Threads, "--translate", translate, "--output-srt", "--output-file", nameForCppExecutable, "--language", "auto", "--model", path.Join(appDir, "models", "ggml-"+config.Model+".bin"), "--file", audioFile)
+			runCommand("Transcription using whisper.cpp.", path.Join(appDir, whisperCppFile), "--threads", config.Threads, "--translate", translate, "--output-srt", "--output-file", nameForCppExecutable, "--language", "auto", "--model", path.Join(appDir, "models", "ggml-"+config.Model+".bin"), "--file", audioFile)
 		} else {
 			runCommand("Transcription using faster-whisper.", path.Join(appDir, "whisper-env", "bin", "python"), path.Join(appDir, "transcribe.py"), "--output", srtTmp, "--model", config.Model, "--threads", config.Threads, "--appdir", path.Join(appDir, "models"), "--action", action, "--input", audioFile)
 		}
@@ -474,7 +551,7 @@ func main() {
 
 	transcriptionBuff, err := os.ReadFile(fileToRead)
 	if err != nil {
-		fmt.Println("Error:", err)
+		printError(err)
 		os.Exit(1)
 	}
 	transcription := string(transcriptionBuff)
@@ -491,7 +568,8 @@ func main() {
 		ctx := context.Background()
 		client, err := genai.NewClient(ctx, option.WithAPIKey(config.Key))
 		if err != nil {
-			fmt.Println("Gemini error:", err)
+			fmt.Println("Gemini error.")
+			printError(err)
 			os.Exit(1)
 		}
 		defer client.Close()
@@ -561,7 +639,8 @@ func main() {
 
 			res, err := cs.SendMessage(ctx, genai.Text(prompt))
 			if err != nil {
-				debugLog("Gemini API error:", err)
+				debugLog("Gemini API error.")
+				printError(err)
 				debugLog("Retrying...")
 				debugLog("Request #", index+1)
 				time.Sleep(90 * time.Second)
@@ -571,7 +650,8 @@ func main() {
 					if !verboseMode {
 						myspinner.Error()
 					}
-					fmt.Println("Gemini API error:", err)
+					fmt.Println("Gemini API error.")
+					printError(err)
 					os.Exit(1)
 				}
 			}
@@ -589,7 +669,7 @@ func main() {
 
 		// Save translation to file
 		if err := os.WriteFile(srtTranslatedTmp, []byte(translatedSubtitles), 0644); err != nil {
-			fmt.Println("Error:", err)
+			printError(err)
 			os.Exit(1)
 		}
 		debugLog("Created file: ", srtTranslatedTmp)
@@ -610,7 +690,7 @@ func main() {
 
 	if isSrtInput == true {
 		if moveFile(srtTranslatedTmp, srtTranslatedOutput); err != nil {
-			fmt.Println("Error:", err)
+			printError(err)
 		}
 
 		fmt.Println("\nSubtitles ready!")
@@ -646,16 +726,16 @@ func main() {
 
 	if *geminiFlag {
 		if moveFile(srtTmp, srtOutput); err != nil {
-			fmt.Println("Error:", err)
+			printError(err)
 		}
 
 		if moveFile(srtTranslatedTmp, srtTranslatedOutput); err != nil {
-			fmt.Println("Error:", err)
+			printError(err)
 		}
 
 	} else {
 		if moveFile(srtTmp, srtTranslatedOutput); err != nil {
-			fmt.Println("Error:", err)
+			printError(err)
 		}
 	}
 

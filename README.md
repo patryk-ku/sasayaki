@@ -2,41 +2,55 @@
 
 A small CLI tool that simplifies and automates the process of installing and using AI models to transcribe and translate videos. Written in Go, it uses [**faster-whisper**](https://github.com/SYSTRAN/faster-whisper) or [**whisper.cpp**](https://github.com/ggerganov/whisper.cpp) for transcription and english translation. Translation into other languages is done using **Google Gemini**. Just enter the video link or file path to get translated subtitles in .srt format.
 
-The core features of both implementations download, install and works automatically, and the models run on the CPU by default without requiring any additional system dependencies. Both faster-whisper and whisper.cpp can perform better on GPUs, but this requires manual installation of dependencies and editing the Python script for faster-whisper or manually compiling binaries for whisper.cpp. I plan to add GPU support in the future, but currently, I do not have a dedicated GPU, so I am unable to test and debug GPU functionality. Fortunately, both implementations are fast enough that on a moderately powerful CPU, the medium or small models perform sufficiently well.
-
 ![demo](.github/assets/demo.gif)
-
-Why does this tool exist when there are many similar ones? Because none of them met my requirements, so I wrote a simple script for myself. Since it works quite well, I decided to refine it slightly and make it available for others. It's just ~700 lines of Go and Python, and I also learned the basics of Golang while creating it. Most moderately advanced users would be able to do it on their own, but I hope it helps someone new or saves someone a bit of time.
 
 The name Sasayaki (ささやき) means "whisper" in Japanese.
 
+#### Additional Info:
+
+<details>
+  <summary>GPU support?</summary>
+
+The core features of both implementations download, install and works automatically, and the models run on the CPU by default without requiring any additional system dependencies. Both faster-whisper and whisper.cpp can perform better on GPUs, but this requires manual installation of dependencies and editing the Python script for faster-whisper or manually compiling binaries for whisper.cpp. I plan to add GPU support in the future, but currently, I do not have a dedicated GPU, so I am unable to test and debug GPU functionality. Fortunately, both implementations are fast enough that on a moderately powerful CPU, the medium or small models perform sufficiently well.
+
+</details>
+
+<details>
+  <summary>Why does this tool exist when there are many similar ones?</summary>
+
+Because none of them met my requirements, so I wrote a simple script for myself. Since it works quite well, I decided to refine it slightly and make it available for others. It's just ~700 lines of Go and Python, and I also learned the basics of Golang while creating it. Most moderately advanced users would be able to do it on their own, but I hope it helps someone new or saves someone a bit of time.
+
+</details>
+
 ## Requirements
 
-For now, this tool only works on Unix-like systems. Only Linux tested and only the binaries for Linux are available for download. It requires these packages to be installed:
+This tool works on x86_64 **Windows** and **Linux** systems, as well as **macOS** with ARM-based processors, including M1 and newer models. The following dependencies need to be installed and available in your system's PATH:
 
 -   [ffmpeg](https://www.ffmpeg.org/)
--   [yt-dlp](https://github.com/yt-dlp/yt-dlp) (optional)
+-   [yt-dlp](https://github.com/yt-dlp/yt-dlp) (optional, only required for downloading videos)
 
 faster-whisper version requires also:
 
 -   [python](https://www.python.org/)
 -   [pyenv](https://github.com/pyenv/pyenv)
 
-whisper.cpp version requires also:
-
--   [curl](https://curl.se/) (it should be installed by default on most systems)
+> The faster-whisper version does not work on Windows because pyenv is not available for Windows.
 
 ## Installation
 
-Download the latest executable from the [Releases](https://github.com/patryk-ku/sasayaki/releases) page. Then, grant the file execute permissions:
+Download version for your operating system from the [Releases](https://github.com/patryk-ku/sasayaki/releases) page. You can rename the file to `sasayaki` for convenience.
+
+On Linux and macOS grant the file execute permissions:
 
 ```sh
 chmod +x sasayaki
 ```
 
-There are two installation options:
+Then, there are two installation options:
 
-### faster-whisper version (requires python)
+### faster-whisper version
+
+Requires python and pyenv. Does not work on Windows.
 
 ```sh
 ./sasayaki --install
@@ -58,6 +72,8 @@ You can install both at the same time:
 
 > [!NOTE]
 > The `--install` parameter will create a `.sasayaki` folder in your home directory, next it will install python 3.12 using pyenv, then create a separate venv and download the necessary packages in it. Finally, it will create the python file needed for transcription and a configuration file. If you chose the whisper.cpp version, all Python-related elements will be skipped, and an executable file named whisper-cli will be created in the program directory. You can reverse this process with `--uninstall` or manually delete the `.sasayaki` folder, but **this will not uninstall a previously installed version of Python from pyenv, you have to do it manually**.
+
+The configuration file is located at `~/.sasayaki/config.toml` on Linux, macOS and `%USERPROFILE%\.sasayaki\config.toml` on Windows.
 
 Optional:
 
@@ -143,6 +159,10 @@ If you want to use whisper.cpp, you must compile it yourself and then copy the `
 go mod tidy
 go build -ldflags "-w -s"
 ```
+
+## Changelog
+
+[CHANGELOG.md](.github/CHANGELOG.md)
 
 ## External Licenses
 
