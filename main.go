@@ -212,6 +212,7 @@ threads = "8"
 model = "medium"
 
 # Force usage of whisper.cpp version without --cpp argument
+# Enabled by default on Windows regardless of this setting
 cpp = false
 `
 	if err := os.WriteFile(path.Join(appDir, "config.toml"), []byte(configText), 0644); err != nil {
@@ -224,7 +225,7 @@ cpp = false
 func main() {
 	fmt.Println("")
 	fmt.Println(" ", invertANSI, "ささやき", resetANSI)
-	fmt.Println(" ", dimANSI, "sasayaki           v0.1.9", resetANSI)
+	fmt.Println(" ", dimANSI, "sasayaki           v0.1.10", resetANSI)
 	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 	fmt.Println("")
 
@@ -237,7 +238,7 @@ func main() {
 	debugFlag := flag.Bool("debug", false, "Print debug info in stdout")
 	geminiFlag := flag.Bool("gemini", false, "Translate using Google Gemini instead of Whisper")
 	langFlag := flag.String("lang", "english", "Specifies a target translation language when using Google Gemini")
-	cppFlag := flag.Bool("cpp", false, "Transcribe using whisper.cpp instead of faster-whisper")
+	cppFlag := flag.Bool("cpp", false, "Transcribe using whisper.cpp instead of faster-whisper (enabled by default on Windows)")
 	flag.Parse()
 
 	if *debugFlag {
@@ -255,6 +256,8 @@ func main() {
 	var whisperCppFile string
 	if runtime.GOOS == "windows" {
 		whisperCppFile = "whisper-cli.exe"
+		// Force usage of whisper.cpp on Windows
+		*cppFlag = true
 	} else {
 		whisperCppFile = "whisper-cli"
 	}
@@ -291,12 +294,6 @@ func main() {
 		}
 		fmt.Println("\nSuccessfully uninstalled.")
 		os.Exit(0)
-	}
-
-	// Exit if not using whisper.cpp on Windows
-	if !*cppFlag && runtime.GOOS == "windows" {
-		fmt.Println("The faster-whisper version does not work on Windows because pyenv is not available for Windows. You need to use the whisper.cpp version by passing the --cpp argument.")
-		os.Exit(1)
 	}
 
 	// --install
