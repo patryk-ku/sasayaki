@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"path"
@@ -176,6 +177,27 @@ func moveFile(sourcePath, destPath string) error {
 		return fmt.Errorf("Couldn't remove source file: %v", err)
 	}
 	return nil
+}
+
+// https://gophercoding.com/download-a-file/
+func downloadFile(url string, filepath string) error {
+	// Get the data
+	resp, err := http.Get(url)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	// Create the file
+	out, err := os.Create(filepath)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	// Write the body to file
+	_, err = io.Copy(out, resp.Body)
+	return err
 }
 
 func generateConfig() {
@@ -389,9 +411,20 @@ func main() {
 
 	// Download whisper.cpp model if --cpp enabled
 	if *cppFlag {
-		modelPath := path.Join(appDir, "models", "ggml-"+config.Model+".bin")
+		modelName := "ggml-" + config.Model + ".bin"
+		modelPath := path.Join(appDir, "models", modelName)
+
 		if !fileExists(modelPath) {
-			runCommand("Downloading whisper.cpp model ("+"ggml-"+config.Model+".bin"+").", "curl", "-L", "-o", modelPath, "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-"+config.Model+".bin")
+			myspinner := spinner.New()
+			myspinner.Start("Downloading whisper.cpp model (" + modelName + ").")
+
+			err := downloadFile("https://huggingface.co/ggerganov/whisper.cpp/resolve/main/"+modelName, modelPath)
+			if err != nil {
+				myspinner.Error()
+				printError(err)
+				os.Exit(1)
+			}
+			myspinner.Success()
 		}
 	}
 
