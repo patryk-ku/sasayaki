@@ -43,7 +43,7 @@ jobs:
               run: |
                   go mod tidy
                   go build -ldflags "-w -s" -o "sasayaki-windows.exe"
-                  .\sasayaki-windows.exe
+                  .\sasayaki-windows.exe --cpp
 
             - name: GH Release
               uses: softprops/action-gh-release@v2
