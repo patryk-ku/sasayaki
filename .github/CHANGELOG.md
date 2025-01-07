@@ -1,6 +1,7 @@
 ## v0.1.10
 
 -   Use whisper.cpp by default on Windows.
+-   New argument: `--model`
 
 ## v0.1.9
 

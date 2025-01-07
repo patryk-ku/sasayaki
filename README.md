@@ -95,7 +95,7 @@ The configuration file is located at `~/.sasayaki/config.toml` on Linux, macOS a
 
 Optional:
 
--   Open `config.toml` and insert here your Gemini API key.
+-   Open `config.toml` and insert here your Gemini API key
 -   Set cpu threads and model size in `config.toml`
 -   Add `sasayaki` binary to PATH
 -   _(advanced)_ Edit `transcribe.py` to enable running model on GPU (look for commented lines)
@@ -128,6 +128,8 @@ Available args:
         Use to install program and needed dependencies in user home folder
   --lang <string>
         Specifies a target translation language when using Google Gemini (default "english")
+  --model <string>
+        Chose whisper model
   --uninstall
         Use to remove program files and its dependencies from user home folder
   --verbose

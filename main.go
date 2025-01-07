@@ -188,6 +188,12 @@ func downloadFile(url string, filepath string) error {
 	}
 	defer resp.Body.Close()
 
+	// Check response code
+	if resp.StatusCode != http.StatusOK {
+		message := fmt.Sprintf("HTTP Error: %d", resp.StatusCode)
+		return errors.New(message)
+	}
+
 	// Create the file
 	out, err := os.Create(filepath)
 	if err != nil {
@@ -239,6 +245,7 @@ func main() {
 	geminiFlag := flag.Bool("gemini", false, "Translate using Google Gemini instead of Whisper")
 	langFlag := flag.String("lang", "english", "Specifies a target translation language when using Google Gemini")
 	cppFlag := flag.Bool("cpp", false, "Transcribe using whisper.cpp instead of faster-whisper (enabled by default on Windows)")
+	modelFlag := flag.String("model", "", "Chose whisper model")
 	flag.Parse()
 
 	if *debugFlag {
@@ -406,6 +413,10 @@ func main() {
 		printError(errors.New("Missing Google Gemini API key in config file."))
 		fmt.Println("Config file location:", path.Join(appDir, "config.toml"))
 		os.Exit(1)
+	}
+
+	if *modelFlag != "" {
+		config.Model = *modelFlag
 	}
 
 	if config.Cpp {
