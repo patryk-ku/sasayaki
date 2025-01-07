@@ -40,7 +40,12 @@ faster-whisper version requires also:
 
 Download version for your operating system from the [Releases](https://github.com/patryk-ku/sasayaki/releases) page. You can rename the file to `sasayaki` for convenience.
 
-On Linux and macOS grant the file execute permissions:
+### Linux / macOS
+
+<details>
+  <summary>Details</summary>
+
+Grant the file execute permissions:
 
 ```sh
 chmod +x sasayaki
@@ -48,27 +53,40 @@ chmod +x sasayaki
 
 Then, there are two installation options:
 
-### faster-whisper version
+#### faster-whisper version
 
-Requires python and pyenv. Does not work on Windows.
+Requires python and pyenv.
 
 ```sh
 ./sasayaki --install
 ```
 
-### whisper.cpp version
+#### whisper.cpp version
 
 ```sh
 ./sasayaki --install --cpp
 ```
 
-You can install both at the same time:
-
-### both versions
+#### both versions at the same time
 
 ```sh
 ./sasayaki --install; ./sasayaki --install --cpp
 ```
+
+</details>
+
+### Windows
+
+<details>
+  <summary>Details</summary>
+
+On Windows faster-whisper version is not available. To install the whisper.cpp version open cmd and run executable:
+
+```sh
+sasayaki.exe --install
+```
+
+</details>
 
 > [!NOTE]
 > The `--install` parameter will create a `.sasayaki` folder in your home directory, next it will install python 3.12 using pyenv, then create a separate venv and download the necessary packages in it. Finally, it will create the python file needed for transcription and a configuration file. If you chose the whisper.cpp version, all Python-related elements will be skipped, and an executable file named whisper-cli will be created in the program directory. You can reverse this process with `--uninstall` or manually delete the `.sasayaki` folder, but **this will not uninstall a previously installed version of Python from pyenv, you have to do it manually**.
@@ -77,7 +95,7 @@ The configuration file is located at `~/.sasayaki/config.toml` on Linux, macOS a
 
 Optional:
 
--   Open `config.toml` and insert here your Gemini API key.
+-   Open `config.toml` and insert here your Gemini API key
 -   Set cpu threads and model size in `config.toml`
 -   Add `sasayaki` binary to PATH
 -   _(advanced)_ Edit `transcribe.py` to enable running model on GPU (look for commented lines)
@@ -101,7 +119,7 @@ Available args:
   --config
         Use to create or reset config file
   --cpp
-        Transcribe using whisper.cpp instead of faster-whisper
+        Transcribe using whisper.cpp instead of faster-whisper (enabled by default on Windows)
   --debug
         Print debug info in stdout
   --gemini
@@ -110,6 +128,8 @@ Available args:
         Use to install program and needed dependencies in user home folder
   --lang <string>
         Specifies a target translation language when using Google Gemini (default "english")
+  --model <string>
+        Chose whisper model
   --uninstall
         Use to remove program files and its dependencies from user home folder
   --verbose
