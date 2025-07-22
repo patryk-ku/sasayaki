@@ -6,8 +6,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
 	"os/exec"
 	"path"
@@ -38,195 +36,6 @@ var (
 	dimANSI    = "\033[2m"
 	resetANSI  = "\033[0m"
 )
-
-func debugLog(a ...any) {
-	if debugMode {
-		fmt.Print(yellowANSI + " [debug] ")
-		fmt.Println(a...)
-		fmt.Print(resetANSI)
-	}
-}
-
-func printError(err error) {
-	fmt.Println(redANSI+"Error:", err, resetANSI)
-}
-
-func runCommand(loadingMessage string, args ...string) {
-	cmd := exec.Command(args[0], args[1:]...)
-	if commandCurrentDir {
-		cmd.Dir = appDir
-	}
-
-	if verboseMode {
-		fmt.Println(invertANSI, "━━━", loadingMessage, "━━━", resetANSI)
-		fmt.Println("")
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-
-		if err := cmd.Run(); err != nil {
-			fmt.Println("Command failed:")
-			fmt.Println(strings.Join(args, " "))
-			printError(err)
-			os.Exit(1)
-		}
-		fmt.Println("")
-	} else {
-		myspinner := spinner.New()
-		myspinner.Start(loadingMessage)
-
-		stdout, err := cmd.CombinedOutput()
-		if err != nil {
-			myspinner.Error()
-			fmt.Println(string(stdout))
-			fmt.Println("Command failed:")
-			fmt.Println(strings.Join(args, " "))
-			printError(err)
-			os.Exit(1)
-		}
-
-		myspinner.Success()
-	}
-}
-
-func printResponse(resp *genai.GenerateContentResponse) string {
-	var text string
-	for _, cand := range resp.Candidates {
-		if cand.FinishReason != genai.FinishReasonStop {
-			fmt.Println(redANSI + "Finish reason other than [STOP]" + resetANSI)
-			fmt.Println("Finish reason:", cand.FinishReason)
-		}
-
-		if cand.Content != nil {
-			for _, part := range cand.Content.Parts {
-				// No idea what im doing and why I just can't convert it to string but whatever. It works for now.
-				text += fmt.Sprintf("%v", part)
-			}
-		}
-	}
-	return text
-}
-
-func parseSRT(text string) []string {
-	// Split text into lines
-	lines := strings.Split(text, "\n")
-	var sections []string
-	var currentSection []string
-
-	for _, line := range lines {
-		trimmedLine := strings.TrimSpace(line)
-
-		// If line is emtpy = end of str section
-		if trimmedLine == "" {
-			if len(currentSection) > 0 {
-				sections = append(sections, strings.Join(currentSection, "\n"))
-				currentSection = []string{}
-			}
-		} else {
-			currentSection = append(currentSection, trimmedLine)
-		}
-	}
-
-	// Add last line if exists
-	if len(currentSection) > 0 {
-		sections = append(sections, strings.Join(currentSection, "\n"))
-	}
-
-	return sections
-}
-
-func fileExists(filePath string) bool {
-	_, error := os.Stat(filePath)
-	return !errors.Is(error, os.ErrNotExist)
-}
-
-func folderExists(path string) bool {
-	info, err := os.Stat(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return false
-		}
-		panic(err)
-	}
-	return info.IsDir()
-}
-
-// https://stackoverflow.com/a/50741908
-func moveFile(sourcePath, destPath string) error {
-	debugLog("Moving file:", sourcePath, "to destination:", destPath)
-	inputFile, err := os.Open(sourcePath)
-	if err != nil {
-		return fmt.Errorf("Couldn't open source file: %v", err)
-	}
-	defer inputFile.Close()
-
-	outputFile, err := os.Create(destPath)
-	if err != nil {
-		return fmt.Errorf("Couldn't open dest file: %v", err)
-	}
-	defer outputFile.Close()
-
-	_, err = io.Copy(outputFile, inputFile)
-	if err != nil {
-		return fmt.Errorf("Couldn't copy to dest from source: %v", err)
-	}
-
-	inputFile.Close() // for Windows, close before trying to remove: https://stackoverflow.com/a/64943554/246801
-
-	err = os.Remove(sourcePath)
-	if err != nil {
-		return fmt.Errorf("Couldn't remove source file: %v", err)
-	}
-	return nil
-}
-
-// https://gophercoding.com/download-a-file/
-func downloadFile(url string, filepath string) error {
-	// Get the data
-	resp, err := http.Get(url)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	// Check response code
-	if resp.StatusCode != http.StatusOK {
-		message := fmt.Sprintf("HTTP Error: %d", resp.StatusCode)
-		return errors.New(message)
-	}
-
-	// Create the file
-	out, err := os.Create(filepath)
-	if err != nil {
-		return err
-	}
-	defer out.Close()
-
-	// Write the body to file
-	_, err = io.Copy(out, resp.Body)
-	return err
-}
-
-func generateConfig() {
-	configText := `# Google Gemini API key:
-key = "insert-key-here"
-
-# Your CPU threads
-threads = "8"
-
-# Chose whisper model
-# example: large-v3, medium, small, tiny
-model = "medium"
-
-# Force usage of whisper.cpp version without --cpp argument
-# Enabled by default on Windows regardless of this setting
-cpp = false
-`
-	if err := os.WriteFile(path.Join(appDir, "config.toml"), []byte(configText), 0644); err != nil {
-		printError(err)
-		os.Exit(1)
-	}
-	fmt.Println("Created config file:", path.Join(appDir, "config.toml"))
-}
 
 func main() {
 	fmt.Println("")
@@ -272,17 +81,17 @@ func main() {
 	// path variables
 	currentDir, err := os.Getwd()
 	if err != nil {
-		printError(err)
+		PrintError(err)
 		os.Exit(1)
 	}
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		printError(err)
+		PrintError(err)
 		os.Exit(1)
 	}
 	appDir = path.Join(homeDir, ".sasayaki")
-	debugLog("current dir:", currentDir)
-	debugLog("app dir:", appDir)
+	DebugLog("current dir:", currentDir)
+	DebugLog("app dir:", appDir)
 
 	// --uninstall
 	if *uninstallFlag {
@@ -296,7 +105,7 @@ func main() {
 
 		err := os.RemoveAll(appDir)
 		if err != nil {
-			printError(err)
+			PrintError(err)
 			os.Exit(1)
 		}
 		fmt.Println("\nSuccessfully uninstalled.")
@@ -305,7 +114,7 @@ func main() {
 
 	// --install
 	if *installFlag {
-		// if folderExists(appDir) {
+		// if FolderExists(appDir) {
 		// 	fmt.Println("Program files already installed, to reinstall first uninstall using --uninstall.")
 		// 	os.Exit(1)
 		// }
@@ -314,13 +123,13 @@ func main() {
 		fmt.Println("Starting instalation.")
 		// Create application directory
 		if err := os.MkdirAll(path.Join(appDir, "tmp"), os.ModePerm); err != nil {
-			printError(err)
+			PrintError(err)
 			os.Exit(1)
 		}
-		debugLog("Created application dir:", appDir)
+		DebugLog("Created application dir:", appDir)
 		// Create models directory
 		if err := os.MkdirAll(path.Join(appDir, "models"), os.ModePerm); err != nil {
-			printError(err)
+			PrintError(err)
 			os.Exit(1)
 		}
 
@@ -331,43 +140,43 @@ func main() {
 			whisperCli, err := embedFS.ReadFile("embed/" + whisperCppFile)
 			if err != nil {
 				myspinner.Error()
-				printError(err)
+				PrintError(err)
 				os.Exit(1)
 			}
 			if err := os.WriteFile(path.Join(appDir, whisperCppFile), whisperCli, 0644); err != nil {
 				myspinner.Error()
-				printError(err)
+				PrintError(err)
 				os.Exit(1)
 			}
 			myspinner.Success()
 
 			if runtime.GOOS != "windows" {
-				runCommand("Granting execution permissions for whisper.cpp executable. ", "chmod", "+x", "whisper-cli")
+				RunCommand("Granting execution permissions for whisper.cpp executable. ", "chmod", "+x", "whisper-cli")
 			}
 
 		} else {
-			runCommand("Installing correct Python version using pyenv.", "pyenv", "install", "3.12", "-s")
-			runCommand("Setting local Python version.", "pyenv", "local", "3.12")
-			runCommand("Creating Python venv.", "pyenv", "exec", "python", "-m", "venv", path.Join(appDir, "whisper-env"))
-			runCommand("Installing dependencies.", path.Join(appDir, "whisper-env", "bin", "pip"), "install", "faster-whisper")
+			RunCommand("Installing correct Python version using pyenv.", "pyenv", "install", "3.12", "-s")
+			RunCommand("Setting local Python version.", "pyenv", "local", "3.12")
+			RunCommand("Creating Python venv.", "pyenv", "exec", "python", "-m", "venv", path.Join(appDir, "whisper-env"))
+			RunCommand("Installing dependencies.", path.Join(appDir, "whisper-env", "bin", "pip"), "install", "faster-whisper")
 
 			// Extract python script from binary
 			myspinner := spinner.New()
 			myspinner.Start("Extracting python script from binary.")
 			pythonScript, err := embedFS.ReadFile("embed/transcribe.py")
 			if err != nil {
-				printError(err)
+				PrintError(err)
 				os.Exit(1)
 			}
 			if err := os.WriteFile(path.Join(appDir, "transcribe.py"), pythonScript, 0644); err != nil {
 				myspinner.Error()
-				printError(err)
+				PrintError(err)
 				os.Exit(1)
 			}
 			myspinner.Success()
 		}
 
-		generateConfig()
+		GenerateConfig()
 
 		fmt.Println("\nInstallation completed.")
 		fmt.Println("TIP: Insert your Google Gemini API key in config file.")
@@ -376,11 +185,11 @@ func main() {
 
 	// --config
 	if *configFlag {
-		generateConfig()
+		GenerateConfig()
 		os.Exit(0)
 	}
 
-	if !folderExists(appDir) {
+	if !FolderExists(appDir) {
 		fmt.Println("Program and dependencies not installed, install them with --install argument.")
 		os.Exit(0)
 	}
@@ -395,13 +204,13 @@ func main() {
 	var config Config
 	if _, err := toml.DecodeFile(path.Join(appDir, "config.toml"), &config); err != nil {
 		fmt.Println("Config file error.")
-		printError(err)
+		PrintError(err)
 		os.Exit(1)
 	}
-	debugLog("-------- Config --------")
-	debugLog("cpu threads:", config.Threads)
-	debugLog("whisper model:", config.Model)
-	debugLog("------------------------")
+	DebugLog("-------- Config --------")
+	DebugLog("cpu threads:", config.Threads)
+	DebugLog("whisper model:", config.Model)
+	DebugLog("------------------------")
 
 	if len(flag.Args()) < 1 {
 		fmt.Println("Usage: sasayaki [args] <url>")
@@ -410,7 +219,7 @@ func main() {
 	}
 
 	if (config.Key == "insert-key-here") && *geminiFlag {
-		printError(errors.New("Missing Google Gemini API key in config file."))
+		PrintError(errors.New("Missing Google Gemini API key in config file."))
 		fmt.Println("Config file location:", path.Join(appDir, "config.toml"))
 		os.Exit(1)
 	}
@@ -424,8 +233,8 @@ func main() {
 	}
 
 	if *cppFlag {
-		if !fileExists(path.Join(appDir, whisperCppFile)) {
-			printError(errors.New("whisper.cpp binary not found."))
+		if !FileExists(path.Join(appDir, whisperCppFile)) {
+			PrintError(errors.New("whisper.cpp binary not found."))
 			fmt.Println("TIP: You can install it using: --cpp --install arguments. Warning: This will overwrite your config file with default one.")
 			os.Exit(1)
 		}
@@ -436,14 +245,14 @@ func main() {
 		modelName := "ggml-" + config.Model + ".bin"
 		modelPath := path.Join(appDir, "models", modelName)
 
-		if !fileExists(modelPath) {
+		if !FileExists(modelPath) {
 			myspinner := spinner.New()
 			myspinner.Start("Downloading whisper.cpp model (" + modelName + ").")
 
-			err := downloadFile("https://huggingface.co/ggerganov/whisper.cpp/resolve/main/"+modelName, modelPath)
+			err := DownloadFile("https://huggingface.co/ggerganov/whisper.cpp/resolve/main/"+modelName, modelPath)
 			if err != nil {
 				myspinner.Error()
-				printError(err)
+				PrintError(err)
 				os.Exit(1)
 			}
 			myspinner.Success()
@@ -452,14 +261,14 @@ func main() {
 
 	// Clear tmp dir
 	if err := os.RemoveAll(path.Join(appDir, "tmp")); err != nil {
-		printError(err)
+		PrintError(err)
 		os.Exit(1)
 	}
 	if err := os.MkdirAll(path.Join(appDir, "tmp"), os.ModePerm); err != nil {
-		printError(err)
+		PrintError(err)
 		os.Exit(1)
 	}
-	debugLog("Cleared dir:", path.Join(appDir, "tmp"))
+	DebugLog("Cleared dir:", path.Join(appDir, "tmp"))
 
 	url := flag.Args()[0]
 
@@ -496,7 +305,7 @@ func main() {
 		output, err := cmd.CombinedOutput()
 		if err != nil {
 			fmt.Println("yt-dlp error.")
-			printError(err)
+			PrintError(err)
 			os.Exit(1)
 		}
 		ytdlpName := path.Base(strings.TrimSpace(string(output)))
@@ -504,7 +313,7 @@ func main() {
 		ytdlpName = ytdlpName + ".mkv"
 		videoTmp = path.Join(appDir, "tmp", ytdlpName)
 
-		runCommand("Downloading video.", "yt-dlp", "--remux-video", "mkv", "-o", videoTmp, downloadUrl)
+		RunCommand("Downloading video.", "yt-dlp", "--remux-video", "mkv", "-o", videoTmp, downloadUrl)
 		videoInput = videoTmp
 	}
 
@@ -530,7 +339,7 @@ func main() {
 	if path.Ext(url) != ".srt" {
 		audioFile := path.Join(appDir, "tmp", "audio.wav")
 		// ffmpeg -i <video> -ar 16000 -ac 1 -c:a pcm_s16le output.wav
-		runCommand("Extracting audio from video file.", "ffmpeg", "-y", "-i", videoInput, "-ar", "16000", "-ac", "1", "-c:a", "pcm_s16le", audioFile)
+		RunCommand("Extracting audio from video file.", "ffmpeg", "-y", "-i", videoInput, "-ar", "16000", "-ac", "1", "-c:a", "pcm_s16le", audioFile)
 
 		if *cppFlag {
 			translate := "false"
@@ -539,13 +348,13 @@ func main() {
 			}
 
 			// TODO: --prompt
-			runCommand("Transcription using whisper.cpp.", path.Join(appDir, whisperCppFile), "--threads", config.Threads, "--translate", translate, "--output-srt", "--output-file", nameForCppExecutable, "--language", "auto", "--model", path.Join(appDir, "models", "ggml-"+config.Model+".bin"), "--file", audioFile)
+			RunCommand("Transcription using whisper.cpp.", path.Join(appDir, whisperCppFile), "--threads", config.Threads, "--translate", translate, "--output-srt", "--output-file", nameForCppExecutable, "--language", "auto", "--model", path.Join(appDir, "models", "ggml-"+config.Model+".bin"), "--file", audioFile)
 		} else {
-			runCommand("Transcription using faster-whisper.", path.Join(appDir, "whisper-env", "bin", "python"), path.Join(appDir, "transcribe.py"), "--output", srtTmp, "--model", config.Model, "--threads", config.Threads, "--appdir", path.Join(appDir, "models"), "--action", action, "--input", audioFile)
+			RunCommand("Transcription using faster-whisper.", path.Join(appDir, "whisper-env", "bin", "python"), path.Join(appDir, "transcribe.py"), "--output", srtTmp, "--model", config.Model, "--threads", config.Threads, "--appdir", path.Join(appDir, "models"), "--action", action, "--input", audioFile)
 		}
-		debugLog("Created file:", srtTmp)
+		DebugLog("Created file:", srtTmp)
 
-		debugLog("Deleting file:", audioFile)
+		DebugLog("Deleting file:", audioFile)
 		os.Remove(audioFile)
 	}
 
@@ -559,7 +368,7 @@ func main() {
 
 	transcriptionBuff, err := os.ReadFile(fileToRead)
 	if err != nil {
-		printError(err)
+		PrintError(err)
 		os.Exit(1)
 	}
 	transcription := string(transcriptionBuff)
@@ -577,7 +386,7 @@ func main() {
 		client, err := genai.NewClient(ctx, option.WithAPIKey(config.Key))
 		if err != nil {
 			fmt.Println("Gemini error.")
-			printError(err)
+			PrintError(err)
 			os.Exit(1)
 		}
 		defer client.Close()
@@ -607,10 +416,10 @@ func main() {
 		cs.History = []*genai.Content{}
 
 		// Split srt into parts
-		debugLog("Translation language:", *langFlag)
-		debugLog("Characters count:", len(transcription))
-		subtitles := parseSRT(transcription)
-		debugLog("Subtitles sections count:", len(subtitles))
+		DebugLog("Translation language:", *langFlag)
+		DebugLog("Characters count:", len(transcription))
+		subtitles := ParseSRT(transcription)
+		DebugLog("Subtitles sections count:", len(subtitles))
 
 		var parts []string
 		var part string
@@ -632,12 +441,12 @@ func main() {
 		if len(part) > 0 {
 			parts = append(parts, part)
 		}
-		debugLog("Required API requests:", len(parts))
+		DebugLog("Required API requests:", len(parts))
 
 		// Finally make API calls
 		var translatedSubtitles string
 		for index, section := range parts {
-			debugLog("Request #", index+1)
+			DebugLog("Request #", index+1)
 			var prompt string
 			if index == 0 {
 				prompt = "Translate these SRT subtitles into " + *langFlag + ". Return them as valid SRT subtitles. Subtitles to translate:\n" + section
@@ -647,10 +456,10 @@ func main() {
 
 			res, err := cs.SendMessage(ctx, genai.Text(prompt))
 			if err != nil {
-				debugLog("Gemini API error.")
-				printError(err)
-				debugLog("Retrying...")
-				debugLog("Request #", index+1)
+				DebugLog("Gemini API error.")
+				PrintError(err)
+				DebugLog("Retrying...")
+				DebugLog("Request #", index+1)
 				time.Sleep(90 * time.Second)
 
 				res, err = cs.SendMessage(ctx, genai.Text(prompt))
@@ -659,11 +468,11 @@ func main() {
 						myspinner.Error()
 					}
 					fmt.Println("Gemini API error.")
-					printError(err)
+					PrintError(err)
 					os.Exit(1)
 				}
 			}
-			translatedSubtitles += printResponse(res)
+			translatedSubtitles += PrintResponse(res)
 
 			if index != 0 {
 				time.Sleep(5 * time.Second)
@@ -677,10 +486,10 @@ func main() {
 
 		// Save translation to file
 		if err := os.WriteFile(srtTranslatedTmp, []byte(translatedSubtitles), 0644); err != nil {
-			printError(err)
+			PrintError(err)
 			os.Exit(1)
 		}
-		debugLog("Created file: ", srtTranslatedTmp)
+		DebugLog("Created file: ", srtTranslatedTmp)
 	}
 
 	// Move files from temp folder
@@ -697,8 +506,8 @@ func main() {
 	videoOutput = path.Join(outputDir, fileName+".mkv")
 
 	if isSrtInput == true {
-		if moveFile(srtTranslatedTmp, srtTranslatedOutput); err != nil {
-			printError(err)
+		if MoveFile(srtTranslatedTmp, srtTranslatedOutput); err != nil {
+			PrintError(err)
 		}
 
 		fmt.Println("\nSubtitles ready!")
@@ -716,14 +525,14 @@ func main() {
 			lang = "eng"
 		}
 
-		runCommand("Embedding Subtitles.", "ffmpeg", "-y", "-i", videoTmp, "-i", srtSource, "-c", "copy", "-c:s", "srt", "-metadata:s:s:0", "language="+lang, videoOutput)
+		RunCommand("Embedding Subtitles.", "ffmpeg", "-y", "-i", videoTmp, "-i", srtSource, "-c", "copy", "-c:s", "srt", "-metadata:s:s:0", "language="+lang, videoOutput)
 
-		debugLog("Deleting file:", videoTmp)
+		DebugLog("Deleting file:", videoTmp)
 		os.Remove(videoTmp)
-		debugLog("Deleting file:", srtTmp)
+		DebugLog("Deleting file:", srtTmp)
 		os.Remove(srtTmp)
 		if *geminiFlag {
-			debugLog("Deleting file:", srtTranslatedTmp)
+			DebugLog("Deleting file:", srtTranslatedTmp)
 			os.Remove(srtTranslatedTmp)
 		}
 
@@ -733,17 +542,17 @@ func main() {
 	}
 
 	if *geminiFlag {
-		if moveFile(srtTmp, srtOutput); err != nil {
-			printError(err)
+		if MoveFile(srtTmp, srtOutput); err != nil {
+			PrintError(err)
 		}
 
-		if moveFile(srtTranslatedTmp, srtTranslatedOutput); err != nil {
-			printError(err)
+		if MoveFile(srtTranslatedTmp, srtTranslatedOutput); err != nil {
+			PrintError(err)
 		}
 
 	} else {
-		if moveFile(srtTmp, srtTranslatedOutput); err != nil {
-			printError(err)
+		if MoveFile(srtTmp, srtTranslatedOutput); err != nil {
+			PrintError(err)
 		}
 	}
 
