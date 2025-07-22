@@ -231,7 +231,7 @@ cpp = false
 func main() {
 	fmt.Println("")
 	fmt.Println(" ", invertANSI, "ささやき", resetANSI)
-	fmt.Println(" ", dimANSI, "sasayaki           v0.1.10", resetANSI)
+	fmt.Println(" ", dimANSI, "sasayaki           v0.1.11", resetANSI)
 	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 	fmt.Println("")
 
