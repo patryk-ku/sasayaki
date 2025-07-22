@@ -77,7 +77,7 @@ func runCommand(loadingMessage string, args ...string) {
 		stdout, err := cmd.CombinedOutput()
 		if err != nil {
 			myspinner.Error()
-			fmt.Appendln(stdout)
+			fmt.Println(string(stdout))
 			fmt.Println("Command failed:")
 			fmt.Println(strings.Join(args, " "))
 			printError(err)
