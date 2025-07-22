@@ -78,6 +78,23 @@ func PrintResponse(resp *genai.GenerateContentResponse) string {
 			}
 		}
 	}
+
+	// Remove first line if it starts with "```"
+	if strings.HasPrefix(text, "```") {
+		index := strings.Index(text, "\n")
+		if index != -1 {
+			text = text[index+1:]
+		}
+	}
+
+	// Remove last line if it ends with "```"
+	if strings.HasSuffix(text, "```") {
+		index := strings.LastIndex(text, "\n")
+		if index != -1 {
+			text = text[:index]
+		}
+	}
+
 	return text
 }
 
