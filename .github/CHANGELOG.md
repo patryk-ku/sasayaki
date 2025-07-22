@@ -1,3 +1,7 @@
+## v0.1.12
+
+- Fixed translations by removing "```" characters from Gemini responses, which caused subtitles to fail.
+
 ## v0.1.11
 
 - From now on, the gemini-2.0-flash model is used for translation instead of gemini-1.5-pro.
